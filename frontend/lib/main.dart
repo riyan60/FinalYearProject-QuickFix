@@ -42,14 +42,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ClipPath(
                   clipper: HeaderClipper(),
                   child: Container(
-                    height: 380,
+                    height: 350,
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Color(0xFF4A89F3), // Bright blue
-                          Color(0xFFE8B391), // Peachy tan
+                          Color(0xFF4A89F3), 
+                          Color(0xFFE8B391), 
                         ],
                       ),
                     ),
@@ -57,9 +57,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 40),
                         child: Image.asset(
-                          'assets/images/header_image.png', // Ensure this image has no background
+                          'assets/images/header_image.png', 
                           fit: BoxFit.contain,
-                          height: 250,
+                          height: 650,
                         ),
                       ),
                     ),
