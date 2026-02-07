@@ -1,0 +1,2 @@
+- [x] Update signup_user.dart: Replace _socialButton method with ElevatedButton implementation from login_page.dart, update labels to "Sign up with Apple" and "Sign up with Google"
+- [x] Update signup_repairman.dart: Replace existing social buttons with _socialButton calls using asset images, update labels to "Sign up with Apple" and "Sign up with Google"
