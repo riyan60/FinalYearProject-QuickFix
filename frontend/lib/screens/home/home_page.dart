@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
-import 'ac_repair.dart';
-import 'carpenter.dart';
-import 'cleaning.dart';
-import 'electrician.dart';
-import 'mechanic.dart';
-import 'plumber.dart';
+import '../cart/cart_page.dart';
+import '../services/ac_repair.dart';
+import '../services/carpenter.dart';
+import '../services/cleaning.dart';
+import '../services/electrician.dart';
+import '../services/mechanic.dart';
+import '../services/plumber.dart';
 
-import 'user_profile_page.dart';
+import '../profile/user_profile_page.dart';
+import '../profile/repairman_profile_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -27,8 +27,18 @@ class _HomePageState extends State<HomePage> {
       _selectedIndex = index;
     });
 
-    if (index == 3) { // Profile Icon
-      Navigator.push(
+    if (index == 0) {
+      // Already on Home
+    } else if (index == 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Booking feature coming soon!')),
+      );
+    } else if (index == 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Map feature coming soon!')),
+      );
+    } else if (index == 3) { // Profile Icon
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => const UserProfilePage(userData: null), // Pass null or a default user data
@@ -73,6 +83,16 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ],
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const CartPage()),
+                    );
+                  },
                 ),
               ],
             ),
@@ -254,24 +274,34 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _workerCard(String name, String rating) {
-    return Container(
-      margin: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.star, color: Colors.blue, size: 14),
-              Text(rating, style: const TextStyle(fontSize: 11)),
-            ],
-          )
-        ],
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RepairmanProfilePage(name: name, rating: rating),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.black),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.star, color: Colors.blue, size: 14),
+                Text(rating, style: const TextStyle(fontSize: 11)),
+              ],
+            )
+          ],
+        ),
       ),
     );
   }

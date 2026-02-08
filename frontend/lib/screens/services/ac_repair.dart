@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
-import 'home_page.dart';
+import 'package:provider/provider.dart';
+import '../../core/providers/cart_provider.dart';
+import '../../models/service_model.dart';
+import '../cart/cart_page.dart';
+import '../home/home_page.dart';
+import '../profile/user_profile_page.dart';
 
 class ACRepairListScreen extends StatelessWidget {
   const ACRepairListScreen({super.key});
@@ -14,6 +19,17 @@ class ACRepairListScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.shopping_cart),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CartPage()),
+              );
+            },
+          ),
+        ],
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -100,8 +116,9 @@ class ACRepairListScreen extends StatelessWidget {
                       ),
                     ),
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Service booked successfully!')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const CartPage()),
                       );
                     },
                     child: const Text(
@@ -120,20 +137,30 @@ class ACRepairListScreen extends StatelessWidget {
         unselectedItemColor: Colors.orange.withValues(alpha: 0.5),
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
-        items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: "Booking"),
-          const BottomNavigationBarItem(icon: Icon(Icons.location_on), label: "Map"),
-          const BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.home),
-            label: "Home",
-          ),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: "Booking"),
+          BottomNavigationBarItem(icon: Icon(Icons.location_on), label: "Map"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
         onTap: (index) {
-          if (index == 3) {
+          if (index == 0) {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const HomePage()),
+            );
+          } else if (index == 1) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Booking feature coming soon!')),
+            );
+          } else if (index == 2) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Map feature coming soon!')),
+            );
+          } else if (index == 3) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const UserProfilePage()),
             );
           }
         },
@@ -142,51 +169,72 @@ class ACRepairListScreen extends StatelessWidget {
   }
 
   Widget _serviceItem(String serviceName, String price) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2))
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Consumer<CartProvider>(
+      builder: (context, cartProvider, child) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2))
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                serviceName,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    serviceName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.orange,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 5),
-              Text(
-                price,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.orange,
-                  fontWeight: FontWeight.w500,
+              GestureDetector(
+                onTap: () {
+                  // Parse price range, take the lower value for simplicity
+                  double parsedPrice = double.tryParse(price.split(' - ')[0].replaceAll('₹', '')) ?? 0.0;
+                  Service service = Service(
+                    id: serviceName.replaceAll(' ', '_').toLowerCase(),
+                    name: serviceName,
+                    description: 'Professional $serviceName service',
+                    price: parsedPrice,
+                    category: 'AC Repair',
+                  );
+                  cartProvider.addService(service);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('$serviceName added to cart')),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2B72E1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 20),
                 ),
               ),
             ],
           ),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2B72E1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.add, color: Colors.white, size: 20),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

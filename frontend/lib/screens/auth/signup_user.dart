@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'login_page.dart';
 
-class SignupPage extends StatefulWidget {
-  const SignupPage({super.key});
+class SignupUser extends StatefulWidget {
+  const SignupUser({super.key});
 
   @override
-  State<SignupPage> createState() => _SignupPageState();
+  State<SignupUser> createState() => _SignupUserState();
 }
 
-class _SignupPageState extends State<SignupPage> {
+class _SignupUserState extends State<SignupUser> {
   bool _showPassword = false;
   bool _showConfirmPassword = false;
 
@@ -52,7 +53,7 @@ class _SignupPageState extends State<SignupPage> {
               ),
             ),
             const SizedBox(height: 30),
-            const Text("Signup", style: TextStyle(fontSize: 32, fontWeight: FontWeight.w500)),
+            const Text("Signup as User", style: TextStyle(fontSize: 32, fontWeight: FontWeight.w500)),
             const SizedBox(height: 30),
             _buildSignupField(Icons.person_outline, "Full name"),
             _buildSignupField(Icons.phone_outlined, "Phone No"),
@@ -80,9 +81,9 @@ class _SignupPageState extends State<SignupPage> {
             const SizedBox(height: 20),
             
             // Social Buttons
-            _buildSocialRow(Icons.apple, "Login with Apple"),
-            const SizedBox(height: 15),
-            _buildSocialRow(Icons.g_mobiledata, "Login with Google", iconColor: Colors.red),
+            _socialButton('assets/images/apple_logo.png', "Sign up with Apple", Colors.white, Colors.black),
+            const SizedBox(height: 20),
+            _socialButton('assets/images/google_logo.png', "Sign up with Google", Colors.white, Colors.black),
             
             const SizedBox(height: 30),
             Row(
@@ -90,7 +91,12 @@ class _SignupPageState extends State<SignupPage> {
               children: [
                 const Text("Already have an account? "),
                 GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    );
+                  },
                   child: const Text("sign in", style: TextStyle(color: Color(0xFF6A94D6), fontWeight: FontWeight.bold)),
                 ),
               ],
@@ -147,4 +153,32 @@ class _SignupPageState extends State<SignupPage> {
       ],
     );
   }
+
+  Widget _socialButton(String assetPath, String label, Color backgroundColor, Color textColor) {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Coming Soon')),
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(assetPath, height: 35, width: 35),
+            const SizedBox(width: 12),
+            Text(label, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
