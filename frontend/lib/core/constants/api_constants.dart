@@ -1,8 +1,8 @@
 class ApiConstants {
-  static const String baseUrl = 'https://api.quickfix.com';
-  static const String loginEndpoint = '/auth/login';
-  static const String signupEndpoint = '/auth/signup';
+  static const String baseUrl = 'http://localhost:5000';
+  static const String loginEndpoint = '/api/auth/login';
+  static const String signupEndpoint = '/api/auth/signup';
   static const String servicesEndpoint = '/services';
-  static const String bookingsEndpoint = '/bookings';
+  static const String bookingsEndpoint = '/api/booking';
   static const String usersEndpoint = '/users';
 }
