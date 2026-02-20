@@ -4,44 +4,19 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'login_page.dart';
 
-// ============================================================
-// CONFIGURATION FOR DIFFERENT TEST DEVICES:
-// ============================================================
-//
-// For Android Emulator: Use '10.0.2.2' (special alias for emulator to access host's localhost)
-// For iOS Simulator: Use 'localhost' or '127.0.0.1'
-// For Physical Device (Android/iOS): Use your computer's local IP address
-//
-// To find your computer's local IP:
-// - Windows: Open Command Prompt and run 'ipconfig'
-// - Mac/Linux: Open Terminal and run 'ifconfig'
-// Look for IPv4 address (e.g., 192.168.1.100)
-//
-// SET YOUR LOCAL IP HERE:
-const String _localIpAddress = '192.168.1.100';
-
-// Select which IP to use based on your testing device:
-// Options: 'emulator', 'simulator', 'physical'
-// Change this to match your testing device
-const String _testDeviceType =
-    'simulator'; // Change to 'emulator', 'simulator', or 'physical'
-
 String _getBaseUrl() {
-  String ipAddress;
-
-  // Select the appropriate IP based on device type
-  if (_testDeviceType == 'emulator') {
+  // Automatically detect the correct IP based on the platform
+  if (Platform.isAndroid) {
     // Android Emulator: 10.0.2.2 is the special IP for emulator to access host machine
-    ipAddress = '10.0.2.2';
-  } else if (_testDeviceType == 'simulator') {
+    // For physical Android devices, you may need to change this to your computer's IP
+    return 'http://10.0.2.2:5000';
+  } else if (Platform.isIOS) {
     // iOS Simulator: Use localhost
-    ipAddress = 'localhost';
+    return 'http://localhost:5000';
   } else {
-    // Physical Device: Use your computer's local IP address
-    ipAddress = _localIpAddress;
+    // Default for other platforms (web, desktop, etc.)
+    return 'http://localhost:5000';
   }
-
-  return 'http://$ipAddress:5000';
 }
 
 class SignupUser extends StatefulWidget {
@@ -121,13 +96,15 @@ class _SignupUserState extends State<SignupUser> {
       final String baseUrl = _getBaseUrl();
 
       final response = await http.post(
-        Uri.parse('$baseUrl/api/auth/signup'),
+        Uri.parse('$baseUrl/api/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'name': _nameController.text.trim(),
+          'username': _nameController.text.trim(),
+          'fullName': _nameController.text.trim(),
           'email': _emailController.text.trim(),
           'password': _passwordController.text,
-          'phone': _phoneController.text.trim(),
+          'address': _phoneController.text
+              .trim(), // Using phone as address for now
           'role': 'client',
         }),
       );
