@@ -1,22 +1,12 @@
 const express = require("express");
 const router = express.Router();
-
-const serviceController = require("../controllers/serviceController");
 const authMiddleware = require("../middleware/authMiddleware");
+const serviceController = require("../controllers/serviceController");
 
-// Get all services (public)
-router.get("/", serviceController.getAllServices);
-
-// Get service by ID (public)
-router.get("/:id", serviceController.getServiceById);
-
-// Create service (protected - could be admin only)
 router.post("/", authMiddleware, serviceController.createService);
-
-// Update service (protected)
-router.put("/:id", authMiddleware, serviceController.updateService);
-
-// Delete service (protected)
-router.delete("/:id", authMiddleware, serviceController.deleteService);
+router.get("/category/:category", serviceController.getServicesByCategory);
+router.get("/technician/:technicianId", serviceController.getServicesByTechnician);
+router.put("/:serviceId", authMiddleware, serviceController.updateService);
+router.delete("/:serviceId", authMiddleware, serviceController.deleteService);
 
 module.exports = router;

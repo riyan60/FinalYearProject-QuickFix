@@ -1,91 +1,128 @@
-const db = require("../firebase");
+const { db } = require("../firebase");
 
-// Get all services
-exports.getAllServices = async (req, res) => {
-  try {
-    const snapshot = await db.collection("services").get();
-    const services = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    res.json(services);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Get service by ID
-exports.getServiceById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const doc = await db.collection("services").doc(id).get();
-    
-    if (!doc.exists) {
-      return res.status(404).json({ message: "Service not found" });
-    }
-    
-    res.json({ id: doc.id, ...doc.data() });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Create a new service
+// Create Service
 exports.createService = async (req, res) => {
   try {
-    const { name, description, price, category } = req.body;
-
-    if (!name || !description || !price || !category) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (req.user.role !== "technician") {
+      return res.status(403).json({ message: "Only technicians allowed" });
     }
 
-    const serviceData = {
-      name,
-      description,
-      price: parseFloat(price),
-      category,
-      createdAt: new Date()
-    };
+    const { category, title, description, price, duration } = req.body;
 
-    const serviceRef = await db.collection("services").add(serviceData);
+    const serviceRef = db.collection("services").doc();
+
+    await serviceRef.set({
+      technicianId: req.user.id,
+      category,
+      title,
+      description,
+      price,
+      duration,
+      isActive: true,
+      createdAt: new Date(),
+    });
 
     res.status(201).json({
       message: "Service created successfully",
-      id: serviceRef.id,
-      ...serviceData
+      serviceId: serviceRef.id,
     });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// Update a service
+// Get Services By Category
+exports.getServicesByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+
+    const snapshot = await db
+      .collection("services")
+      .where("category", "==", category)
+      .where("isActive", "==", true)
+      .get();
+
+    const services = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.json(services);
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get Services By Technician
+exports.getServicesByTechnician = async (req, res) => {
+  try {
+    const { technicianId } = req.params;
+
+    const snapshot = await db
+      .collection("services")
+      .where("technicianId", "==", technicianId)
+      .where("isActive", "==", true)
+      .get();
+
+    const services = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.json(services);
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Update Service
 exports.updateService = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, description, price, category } = req.body;
+    const { serviceId } = req.params;
 
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (description) updateData.description = description;
-    if (price) updateData.price = parseFloat(price);
-    if (category) updateData.category = category;
-    updateData.updatedAt = new Date();
+    const serviceDoc = await db.collection("services").doc(serviceId).get();
 
-    await db.collection("services").doc(id).update(updateData);
+    if (!serviceDoc.exists) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    if (serviceDoc.data().technicianId !== req.user.id) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    await db.collection("services").doc(serviceId).update(req.body);
 
     res.json({ message: "Service updated successfully" });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// Delete a service
+// Soft Delete Service
 exports.deleteService = async (req, res) => {
   try {
-    const { id } = req.params;
-    await db.collection("services").doc(id).delete();
-    res.json({ message: "Service deleted successfully" });
+    const { serviceId } = req.params;
+
+    const serviceDoc = await db.collection("services").doc(serviceId).get();
+
+    if (!serviceDoc.exists) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    if (serviceDoc.data().technicianId !== req.user.id) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    await db.collection("services").doc(serviceId).update({
+      isActive: false,
+    });
+
+    res.json({ message: "Service deactivated successfully" });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
