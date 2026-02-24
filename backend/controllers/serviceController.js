@@ -1,92 +1,83 @@
-const db = require("../firebase");
+const { db } = require("../firebase");
 
-// Get all services
 exports.getAllServices = async (req, res) => {
   try {
-    const snapshot = await db.collection("services").get();
-    const services = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+    const snap = await db
+      .collection("services")
+      .where("is_active", "==", true)
+      .get();
+
+    const services = snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
     }));
-    res.json(services);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+
+    return res.json(services);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 
-// Get service by ID
 exports.getServiceById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const doc = await db.collection("services").doc(id).get();
-    
-    if (!doc.exists) {
-      return res.status(404).json({ message: "Service not found" });
-    }
-    
-    res.json({ id: doc.id, ...doc.data() });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const doc = await db.collection("services").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ message: "Service not found" });
+
+    return res.json({ id: doc.id, ...doc.data() });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 
-// Create a new service
 exports.createService = async (req, res) => {
   try {
-    const { name, description, price, category } = req.body;
+    const { service_name, description, base_price } = req.body;
 
-    if (!name || !description || !price || !category) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (!service_name || !description || base_price === undefined) {
+      return res.status(400).json({ message: "Missing fields" });
     }
 
-    const serviceData = {
-      name,
+    const ref = await db.collection("services").add({
+      service_name,
       description,
-      price: parseFloat(price),
-      category,
-      createdAt: new Date()
-    };
-
-    const serviceRef = await db.collection("services").add(serviceData);
-
-    res.status(201).json({
-      message: "Service created successfully",
-      id: serviceRef.id,
-      ...serviceData
+      base_price: Number(base_price),
+      is_active: true,
+      created_at: new Date(),
     });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+
+    return res.status(201).json({ message: "Service created", id: ref.id });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 
-// Update a service
 exports.updateService = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, description, price, category } = req.body;
+    const { service_name, description, base_price, is_active } = req.body;
 
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (description) updateData.description = description;
-    if (price) updateData.price = parseFloat(price);
-    if (category) updateData.category = category;
-    updateData.updatedAt = new Date();
+    const update = { updated_at: new Date() };
+    if (service_name !== undefined) update.service_name = service_name;
+    if (description !== undefined) update.description = description;
+    if (base_price !== undefined) update.base_price = Number(base_price);
+    if (is_active !== undefined) update.is_active = Boolean(is_active);
 
-    await db.collection("services").doc(id).update(updateData);
+    await db.collection("services").doc(req.params.id).update(update);
 
-    res.json({ message: "Service updated successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    return res.json({ message: "Service updated" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 
-// Delete a service
 exports.deleteService = async (req, res) => {
   try {
-    const { id } = req.params;
-    await db.collection("services").doc(id).delete();
-    res.json({ message: "Service deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    await db.collection("services").doc(req.params.id).update({
+      is_active: false,
+      updated_at: new Date(),
+    });
+
+    return res.json({ message: "Service disabled" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
