@@ -8,10 +8,10 @@ class AuthService {
     String password,
     String role,
   ) async {
+    // Backend expects username, not email - use email as username
     final response = await _apiService.post('/api/auth/login', {
-      'email': email,
+      'username': email,
       'password': password,
-      'role': role,
     });
 
     // Save token after successful login
@@ -29,11 +29,16 @@ class AuthService {
     String phone,
     String role,
   ) async {
-    final response = await _apiService.post('/api/auth/signup', {
-      'name': name,
+    // Backend expects: username, email, password, fullName, address, role
+    // Frontend provides: name, email, password, phone, role
+    // Mapping: name->username, name->fullName, phone->address
+    // Backend has /register not /signup
+    final response = await _apiService.post('/api/auth/register', {
+      'username': name,
       'email': email,
       'password': password,
-      'phone': phone,
+      'fullName': name,
+      'address': phone,
       'role': role,
     });
 
