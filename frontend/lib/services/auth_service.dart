@@ -46,8 +46,10 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> logout() async {
-    // Clear token on logout
+    // Call logout API first (with token) then clear the token
+    final response = await _apiService.post('/api/auth/logout', {});
+    // Clear token after successful logout
     ApiService.setAuthToken(null);
-    return await _apiService.post('/api/auth/logout', {});
+    return response;
   }
 }
