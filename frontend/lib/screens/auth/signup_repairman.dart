@@ -402,24 +402,6 @@ class _SignupRepairmanState extends State<SignupRepairman> {
     );
   }
 
-  Widget _buildSocialRow(
-    IconData icon,
-    String label, {
-    Color iconColor = Colors.black,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, color: iconColor, size: 30),
-        const SizedBox(width: 10),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-      ],
-    );
-  }
-
   Widget _socialButton(
     String assetPath,
     String label,

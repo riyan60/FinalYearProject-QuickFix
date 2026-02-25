@@ -1,35 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/providers/cart_provider.dart';
-import '../../models/service_model.dart';
+import '../../../providers/user/cart_provider.dart';
+import '../../../models/service_model.dart';
 import '../cart/cart_page.dart';
-import '../home/home_page.dart';
+import '../home/user_home_page.dart';
 import '../profile/user_profile_page.dart';
 
-class ACRepairListScreen extends StatelessWidget {
-  const ACRepairListScreen({super.key});
+class CleaningListScreen extends StatelessWidget {
+  const CleaningListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AC Repair Services'),
+        title: const Text('Cleaning Services'),
         backgroundColor: const Color(0xFF2B72E1),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const CartPage()),
-              );
-            },
-          ),
-        ],
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -62,14 +51,14 @@ class ACRepairListScreen extends StatelessWidget {
                           color: const Color(0xFF2B72E1),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.ac_unit, color: Colors.white, size: 30),
+                        child: const Icon(Icons.cleaning_services, color: Colors.white, size: 30),
                       ),
                       const SizedBox(width: 15),
                       const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'AC Repair',
+                            'Cleaning',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -77,7 +66,7 @@ class ACRepairListScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Professional AC cooling services',
+                            'Professional cleaning services',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey,
@@ -98,12 +87,12 @@ class ACRepairListScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 15),
-                _serviceItem('AC Installation', '₹2000 - ₹6000'),
-                _serviceItem('AC Repair', '₹800 - ₹3000'),
-                _serviceItem('Refrigerant Refill', '₹600 - ₹1500'),
-                _serviceItem('Compressor Repair', '₹2000 - ₹5000'),
-                _serviceItem('Regular Maintenance', '₹500 - ₹1200'),
-                _serviceItem('Coil Cleaning', '₹400 - ₹1000'),
+                _serviceItem('Home Cleaning', '₹800 - ₹3000'),
+                _serviceItem('Deep Cleaning', '₹1500 - ₹5000'),
+                _serviceItem('Office Cleaning', '₹2000 - ₹6000'),
+                _serviceItem('Window Cleaning', '₹500 - ₹2000'),
+                _serviceItem('Carpet Cleaning', '₹1200 - ₹4000'),
+                _serviceItem('Post-Renovation Cleaning', '₹2000 - ₹7000'),
                 const SizedBox(height: 30),
                 SizedBox(
                   width: double.infinity,
@@ -147,7 +136,7 @@ class ACRepairListScreen extends StatelessWidget {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
+              MaterialPageRoute(builder: (context) => const UserHome()),
             );
           } else if (index == 1) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -215,7 +204,7 @@ class ACRepairListScreen extends StatelessWidget {
                     name: serviceName,
                     description: 'Professional $serviceName service',
                     price: parsedPrice,
-                    category: 'AC Repair',
+                    category: 'Cleaning',
                   );
                   cartProvider.addService(service);
                   ScaffoldMessenger.of(context).showSnackBar(

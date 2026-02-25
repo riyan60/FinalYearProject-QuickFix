@@ -1,24 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/providers/cart_provider.dart';
-import '../../models/service_model.dart';
+import '../../../providers/user/cart_provider.dart';
+import '../../../models/service_model.dart';
 import '../cart/cart_page.dart';
-import '../home/home_page.dart';
+import '../home/user_home_page.dart';
 import '../profile/user_profile_page.dart';
 
-class CarpenterListScreen extends StatelessWidget {
-  const CarpenterListScreen({super.key});
+class PlumberListScreen extends StatelessWidget {
+  const PlumberListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Carpenter Services'),
+        title: const Text('Plumber Services'),
         backgroundColor: const Color(0xFF2B72E1),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.shopping_cart),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const CartPage()),
+              );
+            },
+          ),
+        ],
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -51,14 +62,14 @@ class CarpenterListScreen extends StatelessWidget {
                           color: const Color(0xFF2B72E1),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.handyman, color: Colors.white, size: 30),
+                        child: const Icon(Icons.water_drop, color: Colors.white, size: 30),
                       ),
                       const SizedBox(width: 15),
                       const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Carpenter',
+                            'Plumber',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -66,7 +77,7 @@ class CarpenterListScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Professional carpentry services',
+                            'Professional plumbing services',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey,
@@ -87,12 +98,12 @@ class CarpenterListScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 15),
-                _serviceItem('Furniture Assembly', '₹800 - ₹3000'),
-                _serviceItem('Door Installation', '₹1200 - ₹4000'),
-                _serviceItem('Cupboard Repair', '₹600 - ₹2000'),
-                _serviceItem('Wooden Door Repair', '₹500 - ₹2500'),
-                _serviceItem('Custom Shelving', '₹2000 - ₹6000'),
-                _serviceItem('General Carpentry', '₹400 - ₹2000'),
+                _serviceItem('Pipe Repair', '₹400 - ₹1500'),
+                _serviceItem('Leak Detection', '₹300 - ₹1000'),
+                _serviceItem('Tap Installation', '₹500 - ₹2000'),
+                _serviceItem('Drainage Cleaning', '₹600 - ₹2500'),
+                _serviceItem('Water Heater Repair', '₹800 - ₹3000'),
+                _serviceItem('Bathroom Fitting', '₹1000 - ₹4000'),
                 const SizedBox(height: 30),
                 SizedBox(
                   width: double.infinity,
@@ -136,7 +147,7 @@ class CarpenterListScreen extends StatelessWidget {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
+              MaterialPageRoute(builder: (context) => const UserHome()),
             );
           } else if (index == 1) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -204,7 +215,7 @@ class CarpenterListScreen extends StatelessWidget {
                     name: serviceName,
                     description: 'Professional $serviceName service',
                     price: parsedPrice,
-                    category: 'Carpenter',
+                    category: 'Plumber',
                   );
                   cartProvider.addService(service);
                   ScaffoldMessenger.of(context).showSnackBar(

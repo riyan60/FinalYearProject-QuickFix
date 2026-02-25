@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../cart/cart_page.dart';
-import '../home/home_page.dart';
-import 'user_profile_page.dart';
+
+import '../../user/home/user_home_page.dart';
+import '../../user/profile/user_profile_page.dart';
 
 void main() => runApp(const MyApp());
 
@@ -232,7 +232,7 @@ class RepairmanProfilePage extends StatelessWidget {
         if (index == 0) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
+            MaterialPageRoute(builder: (context) => const UserHome()),
           );
         } else if (index == 1) {
           ScaffoldMessenger.of(context).showSnackBar(

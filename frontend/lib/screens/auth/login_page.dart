@@ -2,12 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../home/home_page.dart';
+import '../user/home/user_home_page.dart';
 import 'role_selection_page.dart';
+import 'forgot_pass_page.dart';
 
 String _getBaseUrl() {
   if (Platform.isAndroid) {
-    return 'http://10.0.2.2:5000';
+    return 'http://192.168.0.230:5000';
   } else if (Platform.isIOS) {
     return 'http://localhost:5000';
   } else {
@@ -62,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
           );
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
+            MaterialPageRoute(builder: (context) => const UserHome()),
           );
         }
       } else {
@@ -201,7 +202,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
+                        );
+                      },
                       child: const Text(
                         "Forgot password?",
                         style: TextStyle(color: Color(0xFF5B89E9), fontSize: 16, fontWeight: FontWeight.bold),
@@ -215,26 +221,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (_usernameController.text == '1234' && _passwordController.text == '1234') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const HomePage()),
-                          );
-                        } else {
-                          // Show error message
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please enter valid username and password')),
-                          );
-                        }
-                      },
                       onPressed: _isLoading ? null : _handleLogin,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF6B94E1),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
-                      child: const Text("Sign In", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                       child: _isLoading
                           ? const SizedBox(
                               height: 20,

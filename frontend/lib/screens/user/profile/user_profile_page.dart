@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../cart/cart_page.dart';
-import '../home/home_page.dart';
+import '../home/user_home_page.dart';
+import 'user_profile_edit_page.dart';
 
 class ComingSoonPage extends StatelessWidget {
   final String title;
@@ -100,7 +101,12 @@ class UserProfilePage extends StatelessWidget {
                 // Edit Profile Button
                 Center(
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF42A5F5),
                       foregroundColor: Colors.white,
@@ -149,7 +155,7 @@ class UserProfilePage extends StatelessWidget {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
+              MaterialPageRoute(builder: (context) => const UserHome()),
             );
           } else if (index == 1) {
             ScaffoldMessenger.of(context).showSnackBar(

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/providers/cart_provider.dart';
-import '../../models/service_model.dart';
+import '../../../providers/user/cart_provider.dart';
+import '../../../models/service_model.dart';
 import '../cart/cart_page.dart';
-import '../home/home_page.dart';
+import '../home/user_home_page.dart';
 import '../profile/user_profile_page.dart';
 
 class ElectricianListScreen extends StatelessWidget {
@@ -146,7 +146,7 @@ class ElectricianListScreen extends StatelessWidget {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
+              MaterialPageRoute(builder: (context) => const UserHome()),
             );
           } else if (index == 1) {
             ScaffoldMessenger.of(context).showSnackBar(

@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/providers/cart_provider.dart';
-import '../../models/service_model.dart';
+import '../../../providers/user/cart_provider.dart';
+import '../../../models/service_model.dart';
 import '../cart/cart_page.dart';
-import '../home/home_page.dart';
+import '../home/user_home_page.dart';
 import '../profile/user_profile_page.dart';
 
-class MechanicListScreen extends StatelessWidget {
-  const MechanicListScreen({super.key});
+class ACRepairListScreen extends StatelessWidget {
+  const ACRepairListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mechanic Services'),
+        title: const Text('AC Repair Services'),
         backgroundColor: const Color(0xFF2B72E1),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -62,14 +62,14 @@ class MechanicListScreen extends StatelessWidget {
                           color: const Color(0xFF2B72E1),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.directions_car, color: Colors.white, size: 30),
+                        child: const Icon(Icons.ac_unit, color: Colors.white, size: 30),
                       ),
                       const SizedBox(width: 15),
                       const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Mechanic',
+                            'AC Repair',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -77,7 +77,7 @@ class MechanicListScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Professional car repair services',
+                            'Professional AC cooling services',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey,
@@ -98,12 +98,12 @@ class MechanicListScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 15),
-                _serviceItem('Engine Repair', '₹1000 - ₹5000'),
-                _serviceItem('Oil Change', '₹300 - ₹800'),
-                _serviceItem('Brake Service', '₹500 - ₹2000'),
-                _serviceItem('Battery Replacement', '₹2000 - ₹5000'),
-                _serviceItem('Tire Replacement', '₹1500 - ₹4000'),
-                _serviceItem('General Maintenance', '₹800 - ₹3000'),
+                _serviceItem('AC Installation', '₹2000 - ₹6000'),
+                _serviceItem('AC Repair', '₹800 - ₹3000'),
+                _serviceItem('Refrigerant Refill', '₹600 - ₹1500'),
+                _serviceItem('Compressor Repair', '₹2000 - ₹5000'),
+                _serviceItem('Regular Maintenance', '₹500 - ₹1200'),
+                _serviceItem('Coil Cleaning', '₹400 - ₹1000'),
                 const SizedBox(height: 30),
                 SizedBox(
                   width: double.infinity,
@@ -147,7 +147,7 @@ class MechanicListScreen extends StatelessWidget {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
+              MaterialPageRoute(builder: (context) => const UserHome()),
             );
           } else if (index == 1) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -215,7 +215,7 @@ class MechanicListScreen extends StatelessWidget {
                     name: serviceName,
                     description: 'Professional $serviceName service',
                     price: parsedPrice,
-                    category: 'Mechanic',
+                    category: 'AC Repair',
                   );
                   cartProvider.addService(service);
                   ScaffoldMessenger.of(context).showSnackBar(

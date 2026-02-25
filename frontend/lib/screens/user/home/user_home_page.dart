@@ -9,17 +9,17 @@ import '../services/mechanic.dart';
 import '../services/plumber.dart';
 
 import '../profile/user_profile_page.dart';
-import '../profile/repairman_profile_page.dart';
+import '../../repairman/profile/repairman_profile_page.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class UserHome extends StatefulWidget {
+  const UserHome({super.key});
 
   @override
   // ignore: library_private_types_in_public_api
-  _HomePageState createState() => _HomePageState();
+  _UserHomeState createState() => _UserHomeState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _UserHomeState extends State<UserHome> {
   int _selectedIndex = 0;
 
   void _onItemTapped(int index) {
