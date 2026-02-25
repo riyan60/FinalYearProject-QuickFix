@@ -32,18 +32,21 @@ class _SignupUserState extends State<SignupUser> {
   bool _isLoading = false;
 
   // Text Controllers
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
+  final TextEditingController _confirmPasswordController =TextEditingController();
 
   @override
   void dispose() {
+    _usernameController.dispose();
     _nameController.dispose();
-    _phoneController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -51,16 +54,24 @@ class _SignupUserState extends State<SignupUser> {
 
   Future<void> _handleSignup() async {
     // Validate all fields
+    if (_usernameController.text.trim().isEmpty) {
+      _showError("Please enter a username");
+      return;
+    }
     if (_nameController.text.trim().isEmpty) {
       _showError("Please enter your full name");
       return;
     }
-    if (_phoneController.text.trim().isEmpty) {
-      _showError("Please enter your phone number");
-      return;
-    }
     if (_emailController.text.trim().isEmpty) {
       _showError("Please enter your email");
+      return;
+    }
+    if (_addressController.text.trim().isEmpty) {
+      _showError("Please enter your address");
+      return;
+    }
+    if (_phoneController.text.trim().isEmpty) {
+      _showError("Please enter your phone number");
       return;
     }
     if (_passwordController.text.isEmpty) {
@@ -99,12 +110,12 @@ class _SignupUserState extends State<SignupUser> {
         Uri.parse('$baseUrl/api/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'username': _nameController.text.trim(),
+          'username': _usernameController.text.trim(),
           'fullName': _nameController.text.trim(),
           'email': _emailController.text.trim(),
           'password': _passwordController.text,
-          'address': _phoneController.text
-              .trim(), // Using phone as address for now
+          'address': _addressController.text.trim(),
+          'phone': _phoneController.text.trim(),
           'role': 'client',
         }),
       );
@@ -197,19 +208,29 @@ class _SignupUserState extends State<SignupUser> {
             const SizedBox(height: 30),
             _buildSignupField(
               Icons.person_outline,
-              "Full name",
-              controller: _nameController,
+              "Username",
+              controller: _usernameController,
             ),
             _buildSignupField(
-              Icons.phone_outlined,
-              "Phone No",
-              controller: _phoneController,
+              Icons.person_outline,
+              "Full name",
+              controller: _nameController,
             ),
             _buildSignupField(
               Icons.email_outlined,
               "Email",
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
+            ),
+            _buildSignupField(
+              Icons.location_on_outlined,
+              "Address",
+              controller: _addressController,
+            ),
+            _buildSignupField(
+              Icons.phone_outlined,
+              "Phone No",
+              controller: _phoneController,
             ),
             _buildSignupField(
               Icons.lock_outline,
