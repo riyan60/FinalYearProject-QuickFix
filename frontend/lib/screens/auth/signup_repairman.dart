@@ -31,6 +31,17 @@ class _SignupRepairmanState extends State<SignupRepairman> {
   bool _showConfirmPassword = false;
   bool _isLoading = false;
 
+  // Skills dropdown
+  final List<String> _skillsList = [
+    'Mechanic',
+    'Carpenter',
+    'AC repair',
+    'Electrician',
+    'Plumber',
+    'Cleaning',
+  ];
+  String? _selectedSkill;
+
   // Text Controllers
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
@@ -40,7 +51,6 @@ class _SignupRepairmanState extends State<SignupRepairman> {
       TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _skillsController = TextEditingController();
   final TextEditingController _experienceController = TextEditingController();
   final TextEditingController _hourlyRateController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
@@ -54,7 +64,6 @@ class _SignupRepairmanState extends State<SignupRepairman> {
     _confirmPasswordController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _skillsController.dispose();
     _experienceController.dispose();
     _hourlyRateController.dispose();
     _descriptionController.dispose();
@@ -125,7 +134,7 @@ class _SignupRepairmanState extends State<SignupRepairman> {
           'phone': _phoneController.text.trim(),
           'address': _addressController.text.trim(),
           'role': 'technician',
-          'skills': _skillsController.text.trim(),
+          'skills': _selectedSkill ?? '',
           'experience': _experienceController.text.trim(),
           'hourlyRate': double.tryParse(_hourlyRateController.text) ?? 0,
           'description': _descriptionController.text.trim(),
@@ -258,10 +267,33 @@ class _SignupRepairmanState extends State<SignupRepairman> {
               isConfirmPassword: true,
               controller: _confirmPasswordController,
             ),
-            _buildSignupField(
-              Icons.build,
-              "Skills (e.g., Plumbing, Electrical)",
-              controller: _skillsController,
+            // Skills Dropdown
+            Padding(
+              padding: const EdgeInsets.only(bottom: 15),
+              child: DropdownButtonFormField<String>(
+                value: _selectedSkill,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.build, color: Colors.grey),
+                  hintText: "Select Skill",
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+                items: _skillsList.map((skill) {
+                  return DropdownMenuItem(
+                    value: skill,
+                    child: Text(skill),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedSkill = value;
+                  });
+                },
+              ),
             ),
             _buildSignupField(
               Icons.work,

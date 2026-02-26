@@ -1,7 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-class ForgotPasswordScreen extends StatelessWidget {
+class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
+
+  @override
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+}
+
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  // OTP Controllers
+  final List<TextEditingController> _otpControllers = List.generate(4, (_) => TextEditingController());
+  final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
+
+  @override
+  void dispose() {
+    for (var controller in _otpControllers) {
+      controller.dispose();
+    }
+    for (var node in _focusNodes) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
+  void _onOtpChanged(String value, int index) {
+    // If user enters a digit, move to next field
+    if (value.isNotEmpty && index < 3) {
+      _focusNodes[index + 1].requestFocus();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +137,7 @@ class ForgotPasswordScreen extends StatelessWidget {
                   // OTP Input Fields
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: List.generate(4, (index) => _otpBox(index + 1)),
+                    children: List.generate(4, (index) => _otpInputBox(index)),
                   ),
 
                   const SizedBox(height: 20),
@@ -126,7 +154,7 @@ class ForgotPasswordScreen extends StatelessWidget {
     );
   }
 
-  Widget _otpBox(int text) {
+  Widget _otpInputBox(int index) {
     return Container(
       width: 50,
       height: 50,
@@ -134,11 +162,22 @@ class ForgotPasswordScreen extends StatelessWidget {
         border: Border.all(color: Colors.blue.shade200, width: 2),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Center(
-        child: Text(
-          "$text",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+      child: TextField(
+        controller: _otpControllers[index],
+        focusNode: _focusNodes[index],
+        textAlign: TextAlign.center,
+        keyboardType: TextInputType.number,
+        maxLength: 1,
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          counterText: '',
+          contentPadding: EdgeInsets.symmetric(vertical: 15),
         ),
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+        ],
+        onChanged: (value) => _onOtpChanged(value, index),
       ),
     );
   }
