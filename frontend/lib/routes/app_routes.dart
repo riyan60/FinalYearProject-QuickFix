@@ -35,4 +35,5 @@ class AppRoutes {
 
   // Splash route
   static const String splash = '/splash';
+  static const String resetPassword = '/reset-password';
 }

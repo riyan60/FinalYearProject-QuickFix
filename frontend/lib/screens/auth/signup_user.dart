@@ -11,7 +11,8 @@ String _getBaseUrl() {
   if (Platform.isAndroid) {
     // Android Emulator: 10.0.2.2 is the special IP for emulator to access host machine
     // For physical Android devices, you may need to change this to your computer's IP
-    return 'http://10.0.2.2:5000';
+    return 'http://192.168.0.230:5000';
+//    return 'http://10.0.2.2:5000';
   } else if (Platform.isIOS) {
     // iOS Simulator: Use localhost
     return 'http://localhost:5000';
