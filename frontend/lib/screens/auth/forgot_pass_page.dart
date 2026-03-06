@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../routes/app_routes.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -28,6 +29,32 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     // If user enters a digit, move to next field
     if (value.isNotEmpty && index < 3) {
       _focusNodes[index + 1].requestFocus();
+    }
+    
+    // Check if all OTP fields are filled
+    _checkOtpComplete();
+  }
+
+  void _checkOtpComplete() {
+    String otp = _otpControllers.map((c) => c.text).join();
+    if (otp.length == 4) {
+      // Check if OTP is "1234"
+      if (otp == "1234") {
+        Navigator.pushReplacementNamed(context, AppRoutes.resetPassword);
+      } else {
+        // Show error for invalid OTP
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid OTP. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        // Clear all OTP fields
+        for (var controller in _otpControllers) {
+          controller.clear();
+        }
+        _focusNodes[0].requestFocus();
+      }
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/user/cart_provider.dart';
+import 'screens/auth/reset_pass_page.dart';
 import 'screens/user/home/user_home_page.dart';
 import 'screens/auth/role_selection_page.dart';
 import 'screens/auth/login_page.dart';
@@ -23,6 +24,7 @@ class QuickFixApp extends StatelessWidget {
         routes: {
           '/job-details': (context) => const JobDetailsScreen(),
           '/job-requests': (context) => const JobRequestsPage(),
+          '/reset-password': (context) => const ResetPasswordPage(),
         },
       ),
     );
