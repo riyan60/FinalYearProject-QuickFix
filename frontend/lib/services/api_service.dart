@@ -1,8 +1,19 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:5000'; //'http://192.168.1.5:5000';
+  static final String baseUrl = _resolveBaseUrl();
+
+  static String _resolveBaseUrl() {
+    const envBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+    if (envBaseUrl.isNotEmpty) return envBaseUrl;
+
+    if (kIsWeb) return 'http://localhost:5000';
+    if (Platform.isAndroid) return 'http://10.0.2.2:5000';
+    return 'http://localhost:5000';
+  }
 
   // Token for authenticated requests
   static String? _authToken;

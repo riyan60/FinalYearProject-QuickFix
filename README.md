@@ -1,1 +1,1 @@
-This is our collage project
+.\start.bat

@@ -134,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 25),
 
                   // Username Field
-                  const Text("Username", style: TextStyle(fontSize: 18, color: Colors.black87)),
+                  const Text("Username or Email", style: TextStyle(fontSize: 18, color: Colors.black87)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _usernameController,

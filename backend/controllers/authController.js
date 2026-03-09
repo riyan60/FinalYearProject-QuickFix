@@ -91,12 +91,18 @@ exports.register = async (req, res) => {
 // LOGIN
 exports.login = async (req, res) => {
   try {
-    const { username, password } = req.body;
-    if (!username || !password) {
+    const { username, email, password } = req.body;
+    const identity = (username || email || "").trim();
+
+    if (!identity || !password) {
       return res.status(400).json({ message: "Missing fields" });
     }
 
-    const snap = await db.collection("accounts").where("username", "==", username).get();
+    let snap = await db.collection("accounts").where("username", "==", identity).get();
+    if (snap.empty) {
+      snap = await db.collection("accounts").where("email", "==", identity).get();
+    }
+
     if (snap.empty) {
       return res.status(400).json({ message: "Invalid credentials" });
     }

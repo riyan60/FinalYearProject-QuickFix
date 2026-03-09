@@ -1,26 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'dart:convert';
 import 'login_page.dart';
 import '../location/location_picker_screen.dart';
-
-String _getBaseUrl() {
-  // Automatically detect the correct IP based on the platform
-  if (Platform.isAndroid) {
-    // Android Emulator: 10.0.2.2 is the special IP for emulator to access host machine
-    // For physical Android devices, you may need to change this to your computer's IP
-    return 'http://192.168.0.230:5000';
-//    return 'http://10.0.2.2:5000';
-  } else if (Platform.isIOS) {
-    // iOS Simulator: Use localhost
-    return 'http://localhost:5000';
-  } else {
-    // Default for other platforms (web, desktop, etc.)
-    return 'http://localhost:5000';
-  }
-}
+import '../../services/api_service.dart';
 
 class SignupUser extends StatefulWidget {
   const SignupUser({super.key});
@@ -111,8 +95,7 @@ class _SignupUserState extends State<SignupUser> {
     });
 
     try {
-      // Get the appropriate base URL based on the platform
-      final String baseUrl = _getBaseUrl();
+      final String baseUrl = ApiService.baseUrl;
 
       final response = await http.post(
         Uri.parse('$baseUrl/api/auth/register'),
