@@ -1,8 +1,19 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:5000'; //'http://192.168.1.5:5000';
+  static final String baseUrl = _resolveBaseUrl();
+
+  static String _resolveBaseUrl() {
+    const envBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+    if (envBaseUrl.isNotEmpty) return envBaseUrl;
+
+    if (kIsWeb) return 'http://localhost:5000';
+    if (Platform.isAndroid) return 'http://10.0.2.2:5000';
+    return 'http://localhost:5000';
+  }
 
   // Token for authenticated requests
   static String? _authToken;
@@ -21,6 +32,24 @@ class ApiService {
     if (_authToken != null) 'Authorization': 'Bearer $_authToken',
   };
 
+  Exception _buildHttpException(
+    http.Response response,
+    String fallbackMessage,
+  ) {
+    try {
+      final decoded = json.decode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final message = decoded['message'] ?? decoded['error'];
+        if (message != null && message.toString().isNotEmpty) {
+          return Exception(message.toString());
+        }
+      }
+    } catch (_) {
+      // Ignore decode failures and fall back to status-based message.
+    }
+    return Exception('$fallbackMessage: ${response.statusCode}');
+  }
+
   Future<dynamic> getRaw(String endpoint) async {
     final response = await http.get(
       Uri.parse('$baseUrl$endpoint'),
@@ -29,7 +58,7 @@ class ApiService {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to load data: ${response.statusCode}');
+      throw _buildHttpException(response, 'Failed to load data');
     }
   }
 
@@ -61,7 +90,7 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to post data: ${response.statusCode}');
+      throw _buildHttpException(response, 'Failed to post data');
     }
   }
 
@@ -77,7 +106,7 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to update data: ${response.statusCode}');
+      throw _buildHttpException(response, 'Failed to update data');
     }
   }
 }

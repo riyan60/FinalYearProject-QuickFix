@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../services/repairman/repairman_service.dart';
 import '../../../services/user/service_catalog_service.dart';
 import '../cart/cart_page.dart';
+import '../history/booking_history_page.dart';
 import '../profile/user_profile_page.dart';
 import '../services/dynamic_service_list_screen.dart';
 import '../../repairman/profile/repairman_profile_page.dart';
@@ -23,8 +24,8 @@ class _UserHomeState extends State<UserHome> {
 
   late final Future<List<_ServiceCategoryView>> _serviceCategoriesFuture =
       _loadServiceCategories();
-  late final Future<List<dynamic>> _repairmenFuture =
-      _repairmanService.getRepairmanList();
+  late final Future<List<dynamic>> _repairmenFuture = _repairmanService
+      .getRepairmanList();
 
   static const List<_ServiceCategoryView> _fallbackCategories = [
     _ServiceCategoryView(
@@ -140,8 +141,9 @@ class _UserHomeState extends State<UserHome> {
     });
 
     if (index == 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Booking feature coming soon!')),
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const BookingHistoryPage()),
       );
     } else if (index == 2) {
       Navigator.push(
@@ -165,7 +167,12 @@ class _UserHomeState extends State<UserHome> {
       body: Column(
         children: [
           Container(
-            padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 10),
+            padding: const EdgeInsets.only(
+              top: 50,
+              left: 20,
+              right: 20,
+              bottom: 10,
+            ),
             color: const Color(0xFF2B72E1),
             child: Row(
               children: [
@@ -214,7 +221,10 @@ class _UserHomeState extends State<UserHome> {
                 child: Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
                       child: TextField(
                         decoration: InputDecoration(
                           hintText: 'Search',
@@ -233,7 +243,8 @@ class _UserHomeState extends State<UserHome> {
                       future: _serviceCategoriesFuture,
                       builder: (context, snapshot) {
                         final categories = snapshot.data ?? _fallbackCategories;
-                        if (snapshot.connectionState == ConnectionState.waiting &&
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
                             snapshot.data == null) {
                           return const Padding(
                             padding: EdgeInsets.symmetric(vertical: 32),
@@ -261,7 +272,11 @@ class _UserHomeState extends State<UserHome> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.build, color: Colors.white, size: 30),
+                          const Icon(
+                            Icons.build,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                           const SizedBox(width: 10),
                           const Expanded(
                             child: Text(
@@ -283,14 +298,15 @@ class _UserHomeState extends State<UserHome> {
                               'Book Now',
                               style: TextStyle(color: Colors.white),
                             ),
-                          )
+                          ),
                         ],
                       ),
                     ),
                     FutureBuilder<List<dynamic>>(
                       future: _repairmenFuture,
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting &&
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
                             snapshot.data == null) {
                           return const Padding(
                             padding: EdgeInsets.symmetric(vertical: 24),
@@ -316,19 +332,23 @@ class _UserHomeState extends State<UserHome> {
                         return GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            childAspectRatio: 1.4,
-                          ),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                childAspectRatio: 1.4,
+                              ),
                           padding: const EdgeInsets.symmetric(horizontal: 15),
                           itemCount: repairmen.length,
                           itemBuilder: (context, index) {
-                            final data = Map<String, dynamic>.from(repairmen[index] as Map);
+                            final data = Map<String, dynamic>.from(
+                              repairmen[index] as Map,
+                            );
                             final name = (data['name'] ?? 'Worker').toString();
                             final ratingValue = data['rating'];
                             final rating = ratingValue is num
                                 ? ratingValue.toStringAsFixed(1)
-                                : (double.tryParse('$ratingValue') ?? 0).toStringAsFixed(1);
+                                : (double.tryParse('$ratingValue') ?? 0)
+                                      .toStringAsFixed(1);
 
                             return _workerCard(name, rating);
                           },
@@ -352,7 +372,10 @@ class _UserHomeState extends State<UserHome> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Booking'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_today),
+            label: 'Booking',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Map'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
@@ -402,7 +425,8 @@ class _UserHomeState extends State<UserHome> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => RepairmanProfilePage(name: name, rating: rating),
+            builder: (context) =>
+                RepairmanProfilePage(name: name, rating: rating),
           ),
         );
       },
@@ -415,14 +439,17 @@ class _UserHomeState extends State<UserHome> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            Text(
+              name,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            ),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.star, color: Colors.blue, size: 14),
                 Text(rating, style: const TextStyle(fontSize: 11)),
               ],
-            )
+            ),
           ],
         ),
       ),

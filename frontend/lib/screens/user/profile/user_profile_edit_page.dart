@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../../../services/auth_service.dart';
+
 class EditProfileScreen extends StatelessWidget {
   const EditProfileScreen({super.key});
 
+  String _value(Map<String, dynamic> data, List<String> keys, String fallback) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString();
+      }
+    }
+    return fallback;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final session = AuthService.currentSession ?? <String, dynamic>{};
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F7),
       appBar: AppBar(
@@ -15,127 +29,50 @@ class EditProfileScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Edit profile',
+          'Account details',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            // Profile Picture Section
-            Center(
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.blue.shade50,
-                    child: Icon(Icons.person, size: 60, color: Colors.blue.shade200),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text(
-                      'Edit picture',
-                      style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const CircleAvatar(
+            radius: 42,
+            backgroundColor: Color(0xFFDCEAFF),
+            child: Icon(Icons.person, size: 54, color: Color(0xFF4A90E2)),
+          ),
+          const SizedBox(height: 24),
+          _infoCard('Name', _value(session, ['name', 'username'], 'Unavailable')),
+          _infoCard(
+            'Email / Login',
+            _value(session, ['email', 'identity'], 'Unavailable'),
+          ),
+          _infoCard('Phone', _value(session, ['phone'], 'Unavailable')),
+          _infoCard('Role', _value(session, ['role'], 'user')),
+          _infoCard('Account ID', _value(session, ['accountId'], 'Unavailable')),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 20),
-            
-            // Form Fields
-            _buildTextField("Full name", "Puerto Rico"),
-            _buildTextField("Phone number", "956782335"),
-            _buildTextField("Email", "youremail@domain.com"),
-            
-            // Side by Side Fields
-            Row(
-              children: [
-                Expanded(child: _buildTextField("Birth", "15-03-04")),
-                const SizedBox(width: 15),
-                Expanded(child: _buildTextField("Genre", "Male")),
-              ],
+            child: const Text(
+              'User profile updates are not exposed by the backend yet, so this screen shows the active session details instead of a fake editable form.',
             ),
-            
-            _buildTextField("Address", "Youaddress"),
-            _buildTextField("Services Offered", "youre Services Offered"),
-            _buildTextField("Repairman Info", "Repairman Info"),
-            
-            const SizedBox(height: 20),
-            
-            // Save Changes Button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () {
-                  // Show success message when save is pressed
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Profile saved successfully!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  // Navigate back to profile page
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4A90E2),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  'Save Changes',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.orange,
-        unselectedItemColor: Colors.grey,
-        currentIndex: 3, // Profile selected
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Booking'),
-          BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Map'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTextField(String label, String initialValue) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
-      child: TextFormField(
-        initialValue: initialValue,
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          filled: true,
-          fillColor: Colors.white,
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.grey, width: 0.5),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.blue, width: 1),
-          ),
-        ),
+  Widget _infoCard(String label, String value) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        title: Text(label),
+        subtitle: Text(value),
       ),
     );
   }

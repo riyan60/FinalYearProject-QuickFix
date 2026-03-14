@@ -1,248 +1,279 @@
 import 'package:flutter/material.dart';
 
-void main() => runApp(const MaterialApp(home: JobRequests()));
+import '../../../services/repairman/job_service.dart';
+import 'job_details.dart';
 
-class JobRequests extends StatefulWidget {
-  const JobRequests({super.key});
+class JobRequestsPage extends StatefulWidget {
+  final String initialStatus;
+
+  const JobRequestsPage({super.key, this.initialStatus = 'pending'});
 
   @override
-  State<JobRequests> createState() => _JobRequestsState();
+  State<JobRequestsPage> createState() => _JobRequestsPageState();
 }
 
-class _JobRequestsState extends State<JobRequests> {
-  int _selectedIndex = 0;
+class _JobRequestsPageState extends State<JobRequestsPage> {
+  final JobService _jobService = JobService();
+  late String _selectedStatus;
+  late Future<List<dynamic>> _jobsFuture;
 
-  static final List<Widget> _pages = [
-    const HomeScreen(),
-    const EarningsScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _selectedStatus = widget.initialStatus;
+    _jobsFuture = _loadJobs();
+  }
+
+  Future<List<dynamic>> _loadJobs() async {
+    if (_selectedStatus == 'active') {
+      final jobs = await _jobService.getMyJobs();
+      return jobs.where((booking) {
+        if (booking is! Map) return false;
+        final status = (booking['status'] ?? '').toString().toLowerCase();
+        return status == 'accepted' || status == 'in_progress';
+      }).toList();
+    }
+
+    return _jobService.getMyJobs(status: _selectedStatus);
+  }
+
+  Future<void> _refreshJobs() async {
+    setState(() {
+      _jobsFuture = _loadJobs();
+    });
+  }
+
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return DateTime.tryParse(value);
+    if (value is Map && value['_seconds'] is num) {
+      return DateTime.fromMillisecondsSinceEpoch(
+        (value['_seconds'] as num).toInt() * 1000,
+      );
+    }
+    return null;
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Unknown date';
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  Future<void> _updateJobStatus(String bookingId, String status) async {
+    try {
+      if (status == 'accepted') {
+        await _jobService.acceptJob(bookingId);
+      } else if (status == 'in_progress') {
+        await _jobService.startJob(bookingId);
+      } else if (status == 'completed') {
+        await _jobService.completeJob(bookingId);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Booking marked as $status')));
+      await _refreshJobs();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF4A80D4),
-      body: SafeArea(
-        bottom: false,
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(30),
-              topRight: Radius.circular(30),
-            ),
-          ),
-          child: _pages[_selectedIndex],
-        ),
+      appBar: AppBar(
+        title: const Text('Repairman Jobs'),
+        backgroundColor: const Color(0xFF4A80D4),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.orange,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: "Booking"),
-          BottomNavigationBarItem(icon: Icon(Icons.location_on), label: "Map"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
-      ),
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildLogoHeader(),
-        _buildFilterTabs(),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              _serviceRequestCard(context, "Ceiling Fan Installation", "Ankit Sharma", "2.4 miles", "30 minutes ago"),
-              _serviceRequestCard(context, "New Wringing & Repair", "Riya lobo", "11.4 miles", "34 minutes ago"),
-              _serviceRequestCard(context, "AC Service", "Deepak naik", "11.4 miles", "44 minutes ago"),
-              const SizedBox(height: 10),
-              Center(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[700]),
-                  child: const Text("View More", style: TextStyle(color: Colors.white)),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment<String>(
+                  value: 'pending',
+                  label: Text('Requests'),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFilterTabs() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _tab("All", isActive: true),
-          _tab("Emergency"),
-          _tab("Near Me"),
-        ],
-      ),
-    );
-  }
-
-  Widget _tab(String label, {bool isActive = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? Colors.white : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: isActive ? const Border(bottom: BorderSide(color: Colors.blue, width: 2)) : null,
-        boxShadow: [if (!isActive) BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)],
-      ),
-      child: Text(label, style: TextStyle(fontWeight: isActive ? FontWeight.bold : FontWeight.normal)),
-    );
-  }
-
-  Widget _serviceRequestCard(BuildContext context, String title, String client, String dist, String time) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.blue.shade100),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const CircleAvatar(backgroundColor: Color(0xFFF5F5F5), child: Icon(Icons.build, size: 18, color: Colors.grey)),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                Text("Client: $client", style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                Row(children: const [Icon(Icons.location_on, size: 12, color: Colors.grey), Text("2.4 miles", style: TextStyle(color: Colors.grey, fontSize: 12))]),
-                const Text("30 minutes ago", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                ButtonSegment<String>(value: 'active', label: Text('Active')),
+                ButtonSegment<String>(
+                  value: 'completed',
+                  label: Text('Completed'),
+                ),
               ],
+              selected: {_selectedStatus},
+              onSelectionChanged: (selection) {
+                setState(() {
+                  _selectedStatus = selection.first;
+                  _jobsFuture = _loadJobs();
+                });
+              },
             ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/job-details');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6E95E0), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-            child: const Text("View Details", style: TextStyle(color: Colors.white, fontSize: 12)),
-          )
-        ],
-      ),
-    );
-  }
-}
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refreshJobs,
+              child: FutureBuilder<List<dynamic>>(
+                future: _jobsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-class EarningsScreen extends StatelessWidget {
-  const EarningsScreen({super.key});
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        snapshot.error.toString().replaceFirst(
+                          'Exception: ',
+                          '',
+                        ),
+                      ),
+                    );
+                  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildLogoHeader(),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10),
-          child: Text("Earnings", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            children: [
-              _buildEarningsCard(),
-              const SizedBox(height: 20),
-              _sectionLabel("Today"),
-              _earningItem("Ceiling Fan Installation", "Quepem", "₹ 2,000"),
-              _sectionLabel("Feb 4, 2026"),
-              _earningItem("New Wringing & Repair", "Gudi", "₹ 10,000"),
-              _sectionLabel("Feb 19, 2026"),
-              _earningItem("AC Service", "Curchorem", "₹ 7,000"),
-            ],
+                  final jobs = snapshot.data ?? [];
+                  if (jobs.isEmpty) {
+                    return Center(
+                      child: Text(
+                        _selectedStatus == 'active'
+                            ? 'No active jobs found'
+                            : 'No ${_selectedStatus.replaceAll('_', ' ')} jobs found',
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: jobs.length,
+                    itemBuilder: (context, index) {
+                      final booking = Map<String, dynamic>.from(
+                        jobs[index] as Map,
+                      );
+                      final bookingId = (booking['id'] ?? '').toString();
+                      final scheduledDate = _parseDate(booking['booking_date']);
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Booking $bookingId',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Service ${booking['service_id'] ?? '-'}',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'User ${booking['user_id'] ?? '-'}',
+                                style: const TextStyle(color: Colors.black54),
+                              ),
+                              Text(
+                                '${_formatDate(scheduledDate)} • ${booking['scheduled_time'] ?? 'Time not set'}',
+                                style: const TextStyle(color: Colors.black54),
+                              ),
+                              Text(
+                                'Amount: Rs ${booking['total_amount'] ?? 0}',
+                                style: const TextStyle(color: Colors.black54),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => JobDetailsScreen(
+                                              booking: booking,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: const Text('View Details'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: _selectedStatus == 'completed'
+                                          ? null
+                                          : () {
+                                              if (_selectedStatus ==
+                                                  'pending') {
+                                                _updateJobStatus(
+                                                  bookingId,
+                                                  'accepted',
+                                                );
+                                              } else if ((booking['status'] ??
+                                                          '')
+                                                      .toString()
+                                                      .toLowerCase() ==
+                                                  'accepted') {
+                                                _updateJobStatus(
+                                                  bookingId,
+                                                  'in_progress',
+                                                );
+                                              } else if ((booking['status'] ??
+                                                          '')
+                                                      .toString()
+                                                      .toLowerCase() ==
+                                                  'in_progress') {
+                                                _updateJobStatus(
+                                                  bookingId,
+                                                  'completed',
+                                                );
+                                              }
+                                            },
+                                      child: Text(
+                                        _selectedStatus == 'pending'
+                                            ? 'Accept'
+                                            : (booking['status'] ?? '')
+                                                      .toString()
+                                                      .toLowerCase() ==
+                                                  'accepted'
+                                            ? 'Start'
+                                            : (booking['status'] ?? '')
+                                                      .toString()
+                                                      .toLowerCase() ==
+                                                  'in_progress'
+                                            ? 'Complete'
+                                            : 'Done',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEarningsCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: const Color(0xFFD4E9FF), borderRadius: BorderRadius.circular(20)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("₹1,00,000", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const Text("Earnings this week", style: TextStyle(color: Colors.black54)),
-          const SizedBox(height: 10),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)), child: const Text("Feb 1 - Feb 26", style: TextStyle(fontSize: 11))),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(7, (i) => _bar(i == 2)),
-          )
         ],
       ),
-    );
-  }
-
-  Widget _bar(bool active) {
-    return Container(height: active ? 60 : 40, width: 20, decoration: BoxDecoration(color: active ? Colors.blue : Colors.white, borderRadius: BorderRadius.circular(5)));
-  }
-
-  Widget _sectionLabel(String label) => Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)));
-
-  Widget _earningItem(String title, String loc, String price) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFF8F9FB), borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        children: [
-          const Icon(Icons.settings_suggest_outlined),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w600)), Text(loc, style: const TextStyle(color: Colors.grey, fontSize: 12))])),
-          Text(price, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const Icon(Icons.chevron_right, color: Colors.grey),
-        ],
-      ),
-    );
-  }
-}
-
-Widget _buildLogoHeader() {
-  return Padding(
-    padding: const EdgeInsets.all(20.0),
-    child: Row(
-      children: const [
-        Icon(Icons.build, color: Colors.orange, size: 24),
-        SizedBox(width: 8),
-        Text("QuickFix", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-      ],
-    ),
-  );
-}
-
-class JobRequestsPage extends StatelessWidget {
-  const JobRequestsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: JobRequests(),
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../routes/app_routes.dart';
+
+import '../../services/password_reset_service.dart';
+import 'reset_pass_page.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -10,12 +12,20 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  final TextEditingController _usernameController = TextEditingController();
   // OTP Controllers
-  final List<TextEditingController> _otpControllers = List.generate(4, (_) => TextEditingController());
+  final List<TextEditingController> _otpControllers = List.generate(
+    4,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
+  final PasswordResetService _passwordResetService = PasswordResetService();
+  bool _isLoading = false;
+  bool _otpRequested = false;
 
   @override
   void dispose() {
+    _usernameController.dispose();
     for (var controller in _otpControllers) {
       controller.dispose();
     }
@@ -30,30 +40,112 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (value.isNotEmpty && index < 3) {
       _focusNodes[index + 1].requestFocus();
     }
-    
+
     // Check if all OTP fields are filled
     _checkOtpComplete();
   }
 
   void _checkOtpComplete() {
     String otp = _otpControllers.map((c) => c.text).join();
-    if (otp.length == 4) {
-      // Check if OTP is "1234"
-      if (otp == "1234") {
-        Navigator.pushReplacementNamed(context, AppRoutes.resetPassword);
-      } else {
-        // Show error for invalid OTP
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid OTP. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        // Clear all OTP fields
-        for (var controller in _otpControllers) {
-          controller.clear();
-        }
-        _focusNodes[0].requestFocus();
+    if (otp.length == 4 && !_isLoading && _otpRequested) {
+      _verifyOtp(otp);
+    }
+  }
+
+  Future<void> _requestOtp({bool resend = false}) async {
+    final username = _usernameController.text.trim();
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter your username first.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = resend
+          ? await _passwordResetService.resendOtp(username)
+          : await _passwordResetService.requestOtp(username);
+
+      if (!mounted) return;
+
+      setState(() {
+        _otpRequested = true;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response['message'] ?? 'OTP sent'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _verifyOtp(String otp) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await _passwordResetService.verifyOtp(
+        _usernameController.text.trim(),
+        otp,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response['message'] ?? 'OTP verified'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              ResetPasswordPage(username: _usernameController.text.trim()),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      for (var controller in _otpControllers) {
+        controller.clear();
+      }
+      _focusNodes[0].requestFocus();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -76,10 +168,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0xFF4A89F3),
-                          Color(0xFFE8B391),
-                        ],
+                        colors: [Color(0xFF4A89F3), Color(0xFFE8B391)],
                       ),
                     ),
                     child: Center(
@@ -103,12 +192,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         onTap: () {
                           Navigator.pop(context);
                         },
-                        child: const Icon(Icons.arrow_back, color: Colors.white),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       const Text(
                         "QuickFix",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
@@ -123,22 +219,29 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 children: [
                   const Text(
                     "Forgot Password",
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, fontFamily: 'Serif'),
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Serif',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   const Text(
-                    "Enter your email below to receive a one-time password (OTP) to reset your account",
+                    "Enter your username to receive a one-time password (OTP) to reset your account",
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.black54, fontSize: 14),
                   ),
                   const SizedBox(height: 30),
 
-                  // Email Input
+                  // Username Input
                   TextField(
+                    controller: _usernameController,
                     decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      hintText: "Email",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.person_outline),
+                      hintText: "Username",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -148,17 +251,37 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: _isLoading ? null : _requestOtp,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF6E95E0),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: const Text("Send OTP", style: TextStyle(color: Colors.white, fontSize: 16)),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              "Send OTP",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
+                            ),
                     ),
                   ),
 
                   const SizedBox(height: 30),
-                  const Text("Enter the OTP sent to your email", style: TextStyle(color: Colors.black87)),
+                  const Text(
+                    "Enter the OTP sent to your email",
+                    style: TextStyle(color: Colors.black87),
+                  ),
                   const SizedBox(height: 15),
 
                   // OTP Input Fields
@@ -169,8 +292,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                   const SizedBox(height: 20),
                   TextButton(
-                    onPressed: () {},
-                    child: const Text("Resend OTP in 43s", style: TextStyle(color: Colors.lightBlue)),
+                    onPressed: _isLoading
+                        ? null
+                        : () => _requestOtp(resend: true),
+                    child: Text(
+                      _otpRequested ? "Resend OTP" : "Send OTP first",
+                      style: const TextStyle(color: Colors.lightBlue),
+                    ),
                   ),
                 ],
               ),
@@ -195,15 +323,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         maxLength: 1,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.blueGrey,
+        ),
         decoration: const InputDecoration(
           border: InputBorder.none,
           counterText: '',
           contentPadding: EdgeInsets.symmetric(vertical: 15),
         ),
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-        ],
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         onChanged: (value) => _onOtpChanged(value, index),
       ),
     );
@@ -217,7 +347,11 @@ class HeaderClipper extends CustomClipper<Path> {
     Path path = Path();
     path.lineTo(0, size.height - 100);
     path.quadraticBezierTo(
-        size.width / 2, size.height, size.width, size.height - 100);
+      size.width / 2,
+      size.height,
+      size.width,
+      size.height - 100,
+    );
     path.lineTo(size.width, 0);
     path.close();
     return path;

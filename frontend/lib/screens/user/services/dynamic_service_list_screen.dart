@@ -5,6 +5,7 @@ import '../../../models/service_model.dart';
 import '../../../providers/user/cart_provider.dart';
 import '../../../services/user/service_catalog_service.dart';
 import '../cart/cart_page.dart';
+import '../history/booking_history_page.dart';
 import '../home/user_home_page.dart';
 import '../profile/user_profile_page.dart';
 import '../../location/location_picker_screen.dart';
@@ -22,14 +23,15 @@ class DynamicServiceListScreen extends StatefulWidget {
   });
 
   @override
-  State<DynamicServiceListScreen> createState() => _DynamicServiceListScreenState();
+  State<DynamicServiceListScreen> createState() =>
+      _DynamicServiceListScreenState();
 }
 
 class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
   final ServiceCatalogService _serviceCatalogService = ServiceCatalogService();
 
-  late final Future<List<Service>> _servicesFuture =
-      _serviceCatalogService.getServicesByCategory(widget.categoryTitle);
+  late final Future<List<Service>> _servicesFuture = _serviceCatalogService
+      .getServicesByCategory(widget.categoryTitle);
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +74,11 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(15),
                   boxShadow: const [
-                    BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 10,
+                      offset: Offset(0, 5),
+                    ),
                   ],
                 ),
                 child: Row(
@@ -83,7 +89,11 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                         color: const Color(0xFF2B72E1),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(widget.categoryIcon, color: Colors.white, size: 30),
+                      child: Icon(
+                        widget.categoryIcon,
+                        color: Colors.white,
+                        size: 30,
+                      ),
                     ),
                     const SizedBox(width: 15),
                     Column(
@@ -99,7 +109,10 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                         ),
                         Text(
                           widget.subtitle,
-                          style: const TextStyle(fontSize: 14, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -109,7 +122,11 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
               const SizedBox(height: 25),
               const Text(
                 'Available Services',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 15),
               Expanded(
@@ -117,14 +134,19 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                   future: _servicesFuture,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator(color: Colors.white));
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      );
                     }
 
                     if (snapshot.hasError) {
                       return Center(
                         child: Text(
                           'Failed to load services',
-                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
                         ),
                       );
                     }
@@ -134,14 +156,18 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                       return Center(
                         child: Text(
                           'No services found for ${widget.categoryTitle}',
-                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
                         ),
                       );
                     }
 
                     return ListView.builder(
                       itemCount: services.length,
-                      itemBuilder: (context, index) => _serviceItem(services[index]),
+                      itemBuilder: (context, index) =>
+                          _serviceItem(services[index]),
                     );
                   },
                 ),
@@ -153,7 +179,9 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orange,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: () {
                     Navigator.push(
@@ -163,7 +191,11 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                   },
                   child: const Text(
                     'Book Service',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -178,7 +210,10 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Booking'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_today),
+            label: 'Booking',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Map'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
@@ -189,8 +224,9 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
               MaterialPageRoute(builder: (context) => const UserHome()),
             );
           } else if (index == 1) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Booking feature coming soon!')),
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BookingHistoryPage()),
             );
           } else if (index == 2) {
             Navigator.push(
@@ -218,7 +254,11 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             boxShadow: const [
-              BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 2))
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 5,
+                offset: Offset(0, 2),
+              ),
             ],
           ),
           child: Row(
@@ -239,7 +279,10 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                     const SizedBox(height: 5),
                     Text(
                       service.description,
-                      style: const TextStyle(fontSize: 13, color: Colors.black54),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black54,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(

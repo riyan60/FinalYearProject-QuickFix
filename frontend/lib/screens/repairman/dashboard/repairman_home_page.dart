@@ -1,37 +1,37 @@
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const QuickFixApp());
-}
+import '../../../services/repairman/job_service.dart';
+import '../jobs/active_jobs_page.dart';
+import '../jobs/completed_jobs_page.dart';
 
-class QuickFixApp extends StatelessWidget {
-  const QuickFixApp({super.key});
+class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(fontFamily: 'sans-serif'),
-      home: const DashboardPage(),
-    );
-  }
+  State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class DashboardPage extends StatelessWidget {
-  const DashboardPage({super.key});
+class _DashboardPageState extends State<DashboardPage> {
+  final JobService _jobService = JobService();
+  late final Future<int> _pendingJobsFuture = _loadPendingJobs();
+
+  Future<int> _loadPendingJobs() async {
+    final jobs = await _jobService.getJobRequests();
+    return jobs.length;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9), // Light grayish background
+      backgroundColor: const Color(0xFFF5F7F9),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         title: Row(
-          children: [
-            const Icon(Icons.settings_suggest, color: Colors.orange, size: 30),
-            const SizedBox(width: 8),
-            const Text(
+          children: const [
+            Icon(Icons.settings_suggest, color: Colors.orange, size: 30),
+            SizedBox(width: 8),
+            Text(
               'QuickFix',
               style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
             ),
@@ -39,11 +39,10 @@ class DashboardPage extends StatelessWidget {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           children: [
             const SizedBox(height: 10),
-            // Search Bar
             TextField(
               decoration: InputDecoration(
                 hintText: 'Search',
@@ -57,7 +56,6 @@ class DashboardPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 30),
-            // Grid of Menu Items
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
@@ -68,7 +66,7 @@ class DashboardPage extends StatelessWidget {
                     title: 'Booking Requests',
                     icon: Icons.build_outlined,
                     color: const Color(0xFFFFCC99),
-                    badgeCount: 3,
+                    badgeCountFuture: _pendingJobsFuture,
                     onTap: () {
                       Navigator.pushNamed(context, '/job-requests');
                     },
@@ -77,11 +75,27 @@ class DashboardPage extends StatelessWidget {
                     title: 'Scheduled Days',
                     icon: Icons.calendar_month_outlined,
                     color: const Color(0xFF99CCFF),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CompletedJobsPage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildMenuCard(
                     title: 'In Progress',
                     icon: Icons.settings_outlined,
                     color: const Color(0xFF99CCFF),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ActiveJobsPage(),
+                        ),
+                      );
+                    },
                   ),
                   _buildMenuCard(
                     title: 'Earnings',
@@ -116,64 +130,77 @@ class DashboardPage extends StatelessWidget {
     required String title,
     required IconData icon,
     required Color color,
-    int badgeCount = 0,
+    Future<int>? badgeCountFuture,
     VoidCallback? onTap,
   }) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Colors.white,
-                    child: Icon(icon, size: 40, color: color.withOpacity(1.0)),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        // Badge for Booking Requests
-        if (badgeCount > 0)
-          Positioned(
-            bottom: -10,
-            left: 0,
-            right: 0,
-            child: Center(
+    return FutureBuilder<int>(
+      future: badgeCountFuture,
+      builder: (context, snapshot) {
+        final badgeCount = snapshot.data ?? 0;
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            GestureDetector(
+              onTap: onTap,
               child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: Colors.orangeAccent,
-                  shape: BoxShape.circle,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  badgeCount.toString(),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Colors.white,
+                        child: Icon(
+                          icon,
+                          size: 40,
+                          color: color.withOpacity(1.0),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-      ],
+            if (badgeCount > 0)
+              Positioned(
+                bottom: -10,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: Colors.orangeAccent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      badgeCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

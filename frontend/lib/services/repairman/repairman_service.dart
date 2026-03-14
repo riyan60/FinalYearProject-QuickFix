@@ -14,4 +14,8 @@ class RepairmanService {
       orElse: () => <String, dynamic>{},
     );
   }
+
+  Future<Map<String, dynamic>> getMyEarnings() async {
+    return _apiService.get('/api/repairmen/me/earnings');
+  }
 }

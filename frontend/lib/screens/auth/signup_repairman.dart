@@ -1,26 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
-import 'dart:convert';
 import 'login_page.dart';
 import '../location/location_picker_screen.dart';
-
-String _getRepairmanBaseUrl() {
-  // Automatically detect the correct IP based on the platform
-  if (Platform.isAndroid) {
-    // Android Emulator: 10.0.2.2 is the special IP for emulator to access host machine
-    // For physical Android devices, you may need to change this to your computer's IP
-    return 'http://192.168.0.230:5000';
-    //return 'http://10.0.2.2:5000';
-  } else if (Platform.isIOS) {
-    // iOS Simulator: Use localhost
-    return 'http://localhost:5000';
-  } else {
-    // Default for other platforms (web, desktop, etc.)
-    return 'http://localhost:5000';
-  }
-}
+import '../../services/api_service.dart';
 
 class SignupRepairman extends StatefulWidget {
   const SignupRepairman({super.key});
@@ -129,12 +111,7 @@ class _SignupRepairmanState extends State<SignupRepairman> {
     });
 
     try {
-      final String baseUrl = _getRepairmanBaseUrl();
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
+      final response = await ApiService().post('/api/auth/register', {
           'username': _usernameController.text.trim(),
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
@@ -148,29 +125,22 @@ class _SignupRepairmanState extends State<SignupRepairman> {
           'experience': _experienceController.text.trim(),
           'hourlyRate': double.tryParse(_hourlyRateController.text) ?? 0,
           'bio': _descriptionController.text.trim(),
-        }),
-      );
+        });
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = json.decode(response.body);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['message'] ?? 'Account created successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-          );
-        }
-      } else {
-        final errorData = json.decode(response.body);
-        _showError(errorData['message'] ?? 'Failed to create account');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Account created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
       }
     } catch (e) {
-      _showError('Network error. Please check your connection.');
+      _showError(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() {
@@ -384,25 +354,20 @@ class _SignupRepairmanState extends State<SignupRepairman> {
             ),
 
             const SizedBox(height: 20),
-            const Text("Or", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 20),
-
-            // Social Buttons
-            _socialButton(
-              'assets/images/apple_logo.png',
-              "Login with Apple",
-              Colors.white,
-              Colors.black,
-            ),
-            const SizedBox(height: 20),
-            _socialButton(
-              'assets/images/google_logo.png',
-              "Login with Google",
-              Colors.white,
-              Colors.black,
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F6FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Repairman registration is handled with this form. Social sign-up is not connected in this project.',
+                textAlign: TextAlign.center,
+              ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -480,47 +445,6 @@ class _SignupRepairmanState extends State<SignupRepairman> {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: Colors.grey[300]!),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _socialButton(
-    String assetPath,
-    String label,
-    Color backgroundColor,
-    Color textColor,
-  ) {
-    return SizedBox(
-      width: double.infinity,
-      height: 55,
-      child: ElevatedButton(
-        onPressed: () {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Coming Soon')));
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 0,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(assetPath, height: 35, width: 35),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: textColor,
-              ),
-            ),
-          ],
         ),
       ),
     );

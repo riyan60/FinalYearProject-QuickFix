@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import '../cart/cart_page.dart';
-import '../home/user_home_page.dart';
-import 'user_profile_edit_page.dart';
+
 import '../../../services/auth_service.dart';
 import '../../auth/login_page.dart';
 import '../../location/location_picker_screen.dart';
+import '../cart/cart_page.dart';
+import '../history/booking_history_page.dart';
+import '../home/user_home_page.dart';
+import 'user_profile_edit_page.dart';
 
-class ComingSoonPage extends StatelessWidget {
+class InfoPage extends StatelessWidget {
   final String title;
+  final String body;
 
-  const ComingSoonPage({super.key, required this.title});
+  const InfoPage({super.key, required this.title, required this.body});
 
   @override
   Widget build(BuildContext context) {
@@ -19,10 +22,13 @@ class ComingSoonPage extends StatelessWidget {
         backgroundColor: const Color(0xFF4A90E2),
       ),
       body: Center(
-        child: Text(
-          '$title\n\nComing Soon!',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            body,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          ),
         ),
       ),
     );
@@ -34,8 +40,48 @@ class UserProfilePage extends StatelessWidget {
 
   const UserProfilePage({super.key, this.userData});
 
+  Map<String, dynamic> get _profileData {
+    final session = AuthService.currentSession ?? <String, dynamic>{};
+    final incoming = userData is Map
+        ? Map<String, dynamic>.from(userData as Map)
+        : <String, dynamic>{};
+    return {...session, ...incoming};
+  }
+
+  String _value(Map<String, dynamic> data, List<String> keys, String fallback) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString();
+      }
+    }
+    return fallback;
+  }
+
+  void _openInfoPage(BuildContext context, String title, String body) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InfoPage(title: title, body: body),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final data = _profileData;
+    final displayName = _value(
+      data,
+      ['name', 'username', 'identity'],
+      'QuickFix Account',
+    );
+    final secondaryText = _value(
+      data,
+      ['email', 'identity', 'accountId'],
+      'Signed-in account',
+    );
+    final tertiaryText = _value(data, ['phone', 'role'], 'User');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
@@ -52,10 +98,9 @@ class UserProfilePage extends StatelessWidget {
           ),
         ],
       ),
-      backgroundColor: const Color(0xFFF4F7FA), // Light background color
+      backgroundColor: const Color(0xFFF4F7FA),
       body: Column(
         children: [
-          // Blue Header Section
           Container(
             height: 180,
             decoration: const BoxDecoration(
@@ -69,7 +114,10 @@ class UserProfilePage extends StatelessWidget {
               child: Stack(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                   Center(
@@ -79,64 +127,172 @@ class UserProfilePage extends StatelessWidget {
                         const CircleAvatar(
                           radius: 40,
                           backgroundColor: Color(0xFFD6E9FF),
-                          child: Icon(Icons.person, size: 50, color: Color(0xFF4A90E2)),
+                          child: Icon(
+                            Icons.person,
+                            size: 50,
+                            color: Color(0xFF4A90E2),
+                          ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          "Riyan Lobo",
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                        Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                        const Text("riyan@gmail.com", style: TextStyle(color: Colors.white70)),
-                        const Text("97643642", style: TextStyle(color: Colors.white70)),
+                        Text(
+                          secondaryText,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        Text(
+                          tertiaryText,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
                       ],
                     ),
-                  )
+                  ),
                 ],
               ),
             ),
           ),
-          
-          // Profile Body
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               children: [
-                // Edit Profile Button
                 Center(
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const EditProfileScreen(),
+                        ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF42A5F5),
                       foregroundColor: Colors.white,
                       minimumSize: const Size(180, 45),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
-                    child: const Text("Edit profile", style: TextStyle(fontSize: 16)),
+                    child: const Text(
+                      'Account details',
+                      style: TextStyle(fontSize: 16),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                _buildSection("Account Info", [
-                  _buildListTile(context, Icons.security, "security"),
-                  _buildListTile(context, Icons.notifications_none, "Notifications"),
-                  _buildListTile(context, Icons.lock, "Privacy"),
+                _buildSection('Account Info', [
+                  _buildListTile(
+                    context,
+                    Icons.badge_outlined,
+                    'Account',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Account',
+                      'Account ID: ${_value(data, ['accountId'], 'Unavailable')}\nRole: ${_value(data, ['role'], 'user')}\nLogin: $secondaryText',
+                    ),
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.notifications_none,
+                    'Notifications',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Notifications',
+                      'Notifications are currently handled through in-app messages and this device\'s permission settings.',
+                    ),
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.lock,
+                    'Privacy',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Privacy',
+                      'Authenticated requests use the current session token. Sensitive account fields are not editable from this screen yet.',
+                    ),
+                  ),
                 ]),
-
-                _buildSection("Support & About", [
-                  _buildListTile(context, Icons.credit_card, "My Subscription"),
-                  _buildListTile(context, Icons.help, "Help & Support"),
-                  _buildListTile(context, Icons.info, "Terms and Policies"),
+                _buildSection('Support & About', [
+                  _buildListTile(
+                    context,
+                    Icons.calendar_today_outlined,
+                    'My Bookings',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const BookingHistoryPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.help,
+                    'Help & Support',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Help & Support',
+                      'For booking issues, use the booking ID from history and the time of the issue so it can be checked against backend records.',
+                    ),
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.info,
+                    'Terms and Policies',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Terms and Policies',
+                      'Use QuickFix with valid account information and complete bookings through the app so statuses, payments, and reviews stay consistent.',
+                    ),
+                  ),
                 ]),
-
-                _buildSection("Actions", [
-                  _buildListTile(context, Icons.flag, "Report a problem"),
-                  _buildListTile(context, Icons.person_add, "Add account"),
-                  _buildListTile(context, Icons.logout, "Log out"),
+                _buildSection('Actions', [
+                  _buildListTile(
+                    context,
+                    Icons.flag,
+                    'Report a problem',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Report a problem',
+                      'If something fails, capture the screen, the booking ID, and the time so the backend data can be checked.',
+                    ),
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.person_add,
+                    'Switch account',
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.logout,
+                    'Log out',
+                    onTap: () async {
+                      await AuthService().logout();
+                      if (!context.mounted) return;
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                  ),
                 ]),
               ],
             ),
@@ -144,14 +300,20 @@ class UserProfilePage extends StatelessWidget {
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 3, // Profile selected
+        currentIndex: 3,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.orange,
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today_outlined), label: 'Booking'),
-          BottomNavigationBarItem(icon: Icon(Icons.location_on_outlined), label: 'Map'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_today_outlined),
+            label: 'Booking',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.location_on_outlined),
+            label: 'Map',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         onTap: (index) {
@@ -161,30 +323,31 @@ class UserProfilePage extends StatelessWidget {
               MaterialPageRoute(builder: (context) => const UserHome()),
             );
           } else if (index == 1) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Booking feature coming soon!')),
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BookingHistoryPage()),
             );
           } else if (index == 2) {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const LocationPickerScreen()),
             );
-          } else if (index == 3) {
-            // Already on Profile
           }
         },
       ),
     );
   }
 
-  // Helper widget to build grouped sections
   Widget _buildSection(String title, List<Widget> children) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 8, bottom: 8, top: 16),
-          child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
         ),
         Container(
           decoration: BoxDecoration(
@@ -197,28 +360,19 @@ class UserProfilePage extends StatelessWidget {
     );
   }
 
-  // Helper widget to build individual list items
-  Widget _buildListTile(BuildContext context, IconData icon, String title) {
+  Widget _buildListTile(
+    BuildContext context,
+    IconData icon,
+    String title, {
+    required VoidCallback onTap,
+  }) {
     return ListTile(
       leading: Icon(icon, color: Colors.black87),
-      title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-      onTap: () async {
-        if (title.toLowerCase() == 'log out') {
-          await AuthService().logout();
-          if (!context.mounted) return;
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (route) => false,
-          );
-          return;
-        }
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => ComingSoonPage(title: title)),
-        );
-      },
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+      ),
+      onTap: onTap,
     );
   }
 }

@@ -17,6 +17,11 @@ app.use("/api/location", require("./routes/locationRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
-app.use("/api/password", require("./routes/passwordResetRoutes"));
+
+try {
+  app.use("/api/password", require("./routes/passwordResetRoutes"));
+} catch (error) {
+  console.warn("Password reset routes disabled:", error.message);
+}
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -2,6 +2,9 @@ import 'api_service.dart';
 
 class AuthService {
   final ApiService _apiService = ApiService();
+  static Map<String, dynamic>? _currentSession;
+
+  static Map<String, dynamic>? get currentSession => _currentSession;
 
   Future<Map<String, dynamic>> login(
     String username,
@@ -17,6 +20,14 @@ class AuthService {
     if (response['token'] != null) {
       ApiService.setAuthToken(response['token']);
     }
+
+    _currentSession = {
+      'accountId': response['accountId'],
+      'role': response['role'],
+      'identity': username,
+      if (username.contains('@')) 'email': username,
+      if (!username.contains('@')) 'username': username,
+    };
 
     return response;
   }
@@ -47,6 +58,14 @@ class AuthService {
     // Save token after successful signup
     if (response['token'] != null) {
       ApiService.setAuthToken(response['token']);
+      _currentSession = {
+        'accountId': response['accountId'],
+        'role': response['role'] ?? normalizedRole,
+        'username': name,
+        'name': name,
+        'email': email,
+        'phone': phone,
+      };
     }
 
     return response;
@@ -59,6 +78,7 @@ class AuthService {
       return {'message': 'Logged out locally'};
     } finally {
       ApiService.setAuthToken(null);
+      _currentSession = null;
     }
   }
 }
