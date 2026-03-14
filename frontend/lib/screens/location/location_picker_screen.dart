@@ -1,39 +1,143 @@
 import 'dart:convert';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart' as latlng;
 
 class LocationPickerScreen extends StatefulWidget {
   const LocationPickerScreen({super.key, this.initialLocation});
 
-  final LatLng? initialLocation;
+  final latlng.LatLng? initialLocation;
 
   @override
   State<LocationPickerScreen> createState() => _LocationPickerScreenState();
 }
 
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
-  late LatLng _cameraStart;
-  LatLng? _selectedLocation;
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
   final TextEditingController _searchController = TextEditingController();
   List<_SearchResult> _searchResults = [];
   bool _isSearching = false;
+  bool _isFetchingLocation = false;
+  bool _locationPermissionDenied = false;
   String _searchError = '';
+  String _locationStatus = '';
+  late LatLng _cameraStart;
+  LatLng? _selectedLocation;
+  LatLng? _currentLocation;
+  StreamSubscription<Position>? _positionStream;
+
+  bool get _googleMapsSupported {
+    if (kIsWeb) return true;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+  }
 
   @override
   void initState() {
     super.initState();
-    _cameraStart = widget.initialLocation ?? const LatLng(20.5937, 78.9629);
-    _selectedLocation = widget.initialLocation;
+    final initial = widget.initialLocation;
+    _cameraStart = LatLng(
+      initial?.latitude ?? 20.5937,
+      initial?.longitude ?? 78.9629,
+    );
+    if (initial != null) {
+      _selectedLocation = LatLng(initial.latitude, initial.longitude);
+    }
+    if (_googleMapsSupported) {
+      _initializeCurrentLocation();
+    }
   }
 
   @override
   void dispose() {
+    _positionStream?.cancel();
+    _mapController?.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeCurrentLocation() async {
+    setState(() {
+      _isFetchingLocation = true;
+      _locationStatus = 'Fetching current location...';
+      _locationPermissionDenied = false;
+    });
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Enable device location services to use live location.');
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        setState(() {
+          _locationPermissionDenied = true;
+          _locationStatus = permission == LocationPermission.deniedForever
+              ? 'Location permission is permanently denied.'
+              : 'Location permission was denied.';
+        });
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      final point = LatLng(position.latitude, position.longitude);
+      if (!mounted) return;
+
+      setState(() {
+        _currentLocation = point;
+        _cameraStart = point;
+        _locationStatus =
+            'Live location: ${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+      });
+
+      await _moveTo(point);
+      await _startLocationStream();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _locationStatus = e.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingLocation = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _startLocationStream() async {
+    await _positionStream?.cancel();
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    ).listen((position) {
+      if (!mounted) return;
+      final point = LatLng(position.latitude, position.longitude);
+      setState(() {
+        _currentLocation = point;
+        _locationStatus =
+            'Live location: ${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+      });
+    });
   }
 
   Future<void> _searchPlaces() async {
@@ -79,7 +183,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       setState(() {
         _searchResults = items;
       });
-    } catch (e) {
+    } catch (_) {
       setState(() {
         _searchError = 'Search failed. Try another keyword.';
         _searchResults = [];
@@ -93,6 +197,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     }
   }
 
+  Future<void> _moveTo(LatLng point) async {
+    await _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(CameraPosition(target: point, zoom: 15)),
+    );
+  }
+
   void _selectSearchResult(_SearchResult result) {
     final point = LatLng(result.latitude, result.longitude);
     setState(() {
@@ -101,154 +211,227 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       _searchError = '';
       _searchController.text = result.displayName;
     });
-    _mapController.move(point, 15);
+    _moveTo(point);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Select Location')),
-      body: Stack(
-        children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _cameraStart,
-              initialZoom: 14,
-              onTap: (_, position) {
-                setState(() {
-                  _selectedLocation = position;
-                });
-              },
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.quickfix_app',
+      body: _googleMapsSupported ? _buildMapLayout() : _buildUnsupportedState(),
+      floatingActionButton: _googleMapsSupported
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'current_location',
+                  onPressed: _isFetchingLocation ? null : _initializeCurrentLocation,
+                  child: _isFetchingLocation
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.my_location),
+                ),
+                const SizedBox(height: 12),
+                FloatingActionButton(
+                  heroTag: 'confirm_location',
+                  onPressed: _selectedLocation == null
+                      ? null
+                      : () {
+                          Navigator.pop(
+                            context,
+                            latlng.LatLng(
+                              _selectedLocation!.latitude,
+                              _selectedLocation!.longitude,
+                            ),
+                          );
+                        },
+                  child: const Icon(Icons.check),
+                ),
+              ],
+            )
+          : null,
+    );
+  }
+
+  Widget _buildMapLayout() {
+    return Stack(
+      children: [
+        GoogleMap(
+          initialCameraPosition: CameraPosition(target: _cameraStart, zoom: 14),
+          onMapCreated: (controller) {
+            _mapController = controller;
+            if (_currentLocation != null) {
+              _moveTo(_currentLocation!);
+            }
+          },
+          onTap: (position) {
+            setState(() {
+              _selectedLocation = position;
+            });
+          },
+          myLocationEnabled: _currentLocation != null,
+          myLocationButtonEnabled: _currentLocation != null,
+          zoomControlsEnabled: false,
+          markers: {
+            if (_currentLocation != null)
+              Marker(
+                markerId: const MarkerId('current_location'),
+                position: _currentLocation!,
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueAzure,
+                ),
+                infoWindow: const InfoWindow(title: 'Your live location'),
               ),
-              if (_selectedLocation != null)
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: _selectedLocation!,
-                      width: 40,
-                      height: 40,
-                      child: const Icon(
-                        Icons.location_on,
-                        size: 40,
-                        color: Colors.red,
+            if (_selectedLocation != null)
+              Marker(
+                markerId: const MarkerId('selected_location'),
+                position: _selectedLocation!,
+              ),
+          },
+        ),
+        Positioned(
+          top: 12,
+          left: 12,
+          right: 12,
+          child: Column(
+            children: [
+              Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => _searchPlaces(),
+                          decoration: const InputDecoration(
+                            hintText: 'Search place or address',
+                            isDense: true,
+                            border: InputBorder.none,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      IconButton(
+                        onPressed: _isSearching ? null : _searchPlaces,
+                        icon: _isSearching
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.search),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_searchError.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _searchError,
+                    style: TextStyle(color: Colors.red.shade700),
+                  ),
+                ),
+              if (_searchResults.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 8),
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ListView.separated(
+                    itemCount: _searchResults.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final result = _searchResults[index];
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          result.displayName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => _selectSearchResult(result),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Material(
+                elevation: 2,
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Text(
+                    _selectedLocation == null
+                        ? (_locationStatus.isNotEmpty
+                              ? _locationStatus
+                              : 'Tap on map to place marker')
+                        : 'Selected: ${_selectedLocation!.latitude.toStringAsFixed(5)}, ${_selectedLocation!.longitude.toStringAsFixed(5)}',
+                  ),
+                ),
+              ),
+              if (_locationPermissionDenied)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Allow location permission to show your live device location.',
+                  ),
                 ),
             ],
           ),
-          Positioned(
-            top: 12,
-            left: 12,
-            right: 12,
-            child: Column(
-              children: [
-                Material(
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white,
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            textInputAction: TextInputAction.search,
-                            onSubmitted: (_) => _searchPlaces(),
-                            decoration: const InputDecoration(
-                              hintText: 'Search place or address',
-                              isDense: true,
-                              border: InputBorder.none,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: _isSearching ? null : _searchPlaces,
-                          icon: _isSearching
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.search),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (_searchError.isNotEmpty)
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _searchError,
-                      style: TextStyle(color: Colors.red.shade700),
-                    ),
-                  ),
-                if (_searchResults.isNotEmpty)
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(top: 8),
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: ListView.separated(
-                      itemCount: _searchResults.length,
-                      separatorBuilder: (context, index) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final result = _searchResults[index];
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            result.displayName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onTap: () => _selectSearchResult(result),
-                        );
-                      },
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Material(
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white,
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Text(
-                      _selectedLocation == null
-                          ? 'Tap on map to place marker'
-                          : 'Selected: ${_selectedLocation!.latitude.toStringAsFixed(5)}, ${_selectedLocation!.longitude.toStringAsFixed(5)}',
-                    ),
-                  ),
-                ),
-              ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUnsupportedState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.map_outlined, size: 56, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'Google Maps picker is supported on Android, iOS, and Web in this project.',
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _selectedLocation == null
-            ? null
-            : () {
-                Navigator.pop(context, _selectedLocation);
-              },
-        child: const Icon(Icons.check),
+          ],
+        ),
       ),
     );
   }
@@ -278,3 +461,42 @@ class _SearchResult {
     );
   }
 }
+
+/*
+Secondary OpenStreetMap implementation kept for future use.
+
+Imports used before:
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+
+Core widget used before:
+FlutterMap(
+  mapController: _mapController,
+  options: MapOptions(
+    initialCenter: LatLng(_cameraStart.latitude, _cameraStart.longitude),
+    initialZoom: 14,
+    onTap: (_, position) {
+      setState(() {
+        _selectedLocation = position;
+      });
+    },
+  ),
+  children: [
+    TileLayer(
+      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      userAgentPackageName: 'com.example.quickfix_app',
+    ),
+    if (_selectedLocation != null)
+      MarkerLayer(
+        markers: [
+          Marker(
+            point: _selectedLocation!,
+            width: 40,
+            height: 40,
+            child: const Icon(Icons.location_on, size: 40, color: Colors.red),
+          ),
+        ],
+      ),
+  ],
+);
+*/

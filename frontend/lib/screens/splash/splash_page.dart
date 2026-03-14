@@ -6,17 +6,23 @@ class SplashPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            SizedBox(
-              width: 100,
-              height: 100,
-              child: CircularProgressIndicator(),
+          children: [
+            Image.asset(
+              'assets/images/splash_logo.png',
+              width: 160,
+              height: 160,
+              fit: BoxFit.contain,
             ),
-            SizedBox(height: 20),
-            Text('QuickFix Loading...'),
+            const SizedBox(height: 24),
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2.4),
+            ),
           ],
         ),
       ),

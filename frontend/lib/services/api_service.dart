@@ -32,6 +32,24 @@ class ApiService {
     if (_authToken != null) 'Authorization': 'Bearer $_authToken',
   };
 
+  Exception _buildHttpException(
+    http.Response response,
+    String fallbackMessage,
+  ) {
+    try {
+      final decoded = json.decode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final message = decoded['message'] ?? decoded['error'];
+        if (message != null && message.toString().isNotEmpty) {
+          return Exception(message.toString());
+        }
+      }
+    } catch (_) {
+      // Ignore decode failures and fall back to status-based message.
+    }
+    return Exception('$fallbackMessage: ${response.statusCode}');
+  }
+
   Future<dynamic> getRaw(String endpoint) async {
     final response = await http.get(
       Uri.parse('$baseUrl$endpoint'),
@@ -40,7 +58,7 @@ class ApiService {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to load data: ${response.statusCode}');
+      throw _buildHttpException(response, 'Failed to load data');
     }
   }
 
@@ -72,7 +90,7 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to post data: ${response.statusCode}');
+      throw _buildHttpException(response, 'Failed to post data');
     }
   }
 
@@ -88,7 +106,7 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to update data: ${response.statusCode}');
+      throw _buildHttpException(response, 'Failed to update data');
     }
   }
 }

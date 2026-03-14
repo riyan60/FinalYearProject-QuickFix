@@ -220,26 +220,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 25),
-                  const Row(
-                    children: [
-                      Expanded(child: Divider(thickness: 1.5, color: Colors.black)),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 15),
-                        child: Text("Or", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      ),
-                      Expanded(child: Divider(thickness: 1.5, color: Colors.black)),
-                    ],
+                  const SizedBox(height: 24),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F6FF),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Use your QuickFix username or email and password to sign in. Apple and Google sign-in are not configured in this project.',
+                      textAlign: TextAlign.center,
+                    ),
                   ),
 
-                  const SizedBox(height: 25),
-
-                  // Social Logins
-                  _socialButton('assets/images/apple_logo.png', "Login with Apple", Colors.white, Colors.black),
-                  const SizedBox(height: 20),
-                  _socialButton('assets/images/google_logo.png', "Login with Google", Colors.white, Colors.black),
-
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 32),
 
                   // Register
                   Row(
@@ -261,33 +256,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _socialButton(String assetPath, String label, Color backgroundColor, Color textColor) {
-    return SizedBox(
-      width: double.infinity,
-      height: 55,
-      child: ElevatedButton(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Coming Soon')),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 0,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(assetPath, height: 35, width: 35),
-            const SizedBox(width: 12),
-            Text(label, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
           ],
         ),
       ),
