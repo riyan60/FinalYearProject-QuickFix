@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'login_page.dart';
 import '../location/location_picker_screen.dart';
 import '../../services/api_service.dart';
+import '../../services/city_service.dart';
 
 class SignupUser extends StatefulWidget {
   const SignupUser({super.key});
@@ -15,7 +16,11 @@ class _SignupUserState extends State<SignupUser> {
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _isLoading = false;
+  bool _isLoadingCities = true;
   LatLng? _selectedLocation;
+  final CityService _cityService = CityService();
+  List<String> _cities = [];
+  String? _selectedCity;
 
   // Text Controllers
   final TextEditingController _usernameController = TextEditingController();
@@ -25,6 +30,35 @@ class _SignupUserState extends State<SignupUser> {
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCities();
+  }
+
+  Future<void> _loadCities() async {
+    try {
+      final cities = await _cityService.getCities();
+      if (!mounted) return;
+      setState(() {
+        _cities = cities;
+        _selectedCity = cities.isNotEmpty ? cities.first : null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _cities = [];
+        _selectedCity = null;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingCities = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -54,6 +88,10 @@ class _SignupUserState extends State<SignupUser> {
     }
     if (_addressController.text.trim().isEmpty) {
       _showError("Please enter your address");
+      return;
+    }
+    if ((_selectedCity ?? '').trim().isEmpty) {
+      _showError("Please select your city");
       return;
     }
     if (_selectedLocation == null) {
@@ -99,6 +137,7 @@ class _SignupUserState extends State<SignupUser> {
           'email': _emailController.text.trim(),
           'password': _passwordController.text,
           'address': _addressController.text.trim(),
+          'city': _selectedCity!.trim(),
           'latitude': _selectedLocation!.latitude,
           'longitude': _selectedLocation!.longitude,
           'phone': _phoneController.text.trim(),
@@ -204,6 +243,40 @@ class _SignupUserState extends State<SignupUser> {
               Icons.location_on_outlined,
               "Address",
               controller: _addressController,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 15),
+              child: DropdownButtonFormField<String>(
+                initialValue: _selectedCity,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(
+                    Icons.location_city_outlined,
+                    color: Colors.grey,
+                  ),
+                  hintText: _isLoadingCities
+                      ? "Loading cities..."
+                      : "Select City",
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+                items: _cities.map((city) {
+                  return DropdownMenuItem(
+                    value: city,
+                    child: Text(city),
+                  );
+                }).toList(),
+                onChanged: _isLoadingCities || _cities.isEmpty
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedCity = value;
+                        });
+                      },
+              ),
             ),
             const SizedBox(height: 4),
             SizedBox(

@@ -43,6 +43,7 @@ const TAB_ENTITY_MAP = {
   Settings: 'accounts',
   Accounts: 'accounts',
   Locations: 'locations',
+  Cities: 'cities',
 };
 
 const MENU_ITEMS = [
@@ -55,17 +56,75 @@ const MENU_ITEMS = [
   { name: 'Reviews', icon: <Star size={20} /> },
   { name: 'Accounts', icon: <Shield size={20} /> },
   { name: 'Locations', icon: <MapPin size={20} /> },
+  { name: 'Cities', icon: <MapPin size={20} /> },
   { name: 'Reports', icon: <BarChart3 size={20} /> },
   { name: 'Settings', icon: <Settings size={20} /> },
 ];
 
+const ENTITY_TEMPLATES = {
+  services: {
+    service_name: '',
+    description: '',
+    base_price: 0,
+    category: 'mechanic',
+    is_active: true,
+  },
+  users: {
+    name: '',
+    phone: '',
+    address: '',
+    account_id: '',
+  },
+  repairmen: {
+    name: '',
+    phone: '',
+    skills: [],
+    availability_status: 'available',
+    account_id: '',
+  },
+  accounts: {
+    username: '',
+    email: '',
+    role: 'admin',
+    is_active: true,
+  },
+  locations: {
+    repairman_id: '',
+    latitude: 0,
+    longitude: 0,
+  },
+  cities: {
+    name: '',
+    state: '',
+    country: 'India',
+    is_active: true,
+  },
+};
+
+const ENTITY_HELP_TEXT = {
+  services: 'Use service_name, description, base_price, category, and is_active. Categories like mechanic, plumber, electrician, cleaning, carpenter, and ac repair show best in the app.',
+  cities: 'Add one city per record. Users and repairmen will see active cities in their signup dropdown.',
+};
+
+const getAuthToken = () =>
+  window.localStorage.getItem('adminToken') || window.localStorage.getItem('token') || '';
+
 const fetchFromApi = async (path, options = {}) => {
   let lastError = null;
   const attempts = [];
+  const token = getAuthToken();
+  const headers = new Headers(options.headers || {});
+
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   for (const base of apiBaseCandidates) {
     try {
-      const response = await fetch(`${base}${path}`, options);
+      const response = await fetch(`${base}${path}`, {
+        ...options,
+        headers,
+      });
       if (!response.ok) {
         const message = `Failed ${response.status} for ${base}${path}`;
         attempts.push(message);
@@ -223,7 +282,7 @@ const Dashboard = () => {
     setModalMode('create');
     setModalTitle(`Create ${activeTab} Record`);
     setEditingId('');
-    setJsonInput('{}');
+    setJsonInput(JSON.stringify(ENTITY_TEMPLATES[activeEntity] || {}, null, 2));
     setModalError('');
     setModalOpen(true);
   };
@@ -374,9 +433,11 @@ const Dashboard = () => {
     <div className="flex h-screen bg-gray-50 font-sans">
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-[#1e3a8a] text-white transition-all duration-300 flex flex-col`}>
         <div className="p-6 flex items-center gap-3">
-          <div className="bg-orange-500 p-2 rounded-lg">
-            <Wrench size={24} className="text-white" />
-          </div>
+          <img
+            src="/logo.jpg"
+            alt="QuickFix logo"
+            className="h-10 w-10 rounded-lg object-cover border border-white/20 bg-white"
+          />
           {isSidebarOpen && <span className="text-xl font-bold tracking-tight">QuickFix</span>}
         </div>
 
@@ -413,9 +474,11 @@ const Dashboard = () => {
               <p className="text-sm font-semibold text-gray-700">Admin Control Center</p>
               <p className="text-xs text-green-500 font-medium">Online</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-orange-100 border-2 border-orange-500 flex items-center justify-center text-orange-600 font-bold">
-              AD
-            </div>
+            <img
+              src="/logo.jpg"
+              alt="QuickFix logo"
+              className="w-10 h-10 rounded-full object-cover border-2 border-orange-500 bg-white"
+            />
           </div>
         </header>
 
@@ -438,6 +501,9 @@ const Dashboard = () => {
               <p className="text-xs text-gray-500 mb-2">
                 Use JSON payload. This directly writes to Firestore for admin-level control.
               </p>
+              {ENTITY_HELP_TEXT[activeEntity] ? (
+                <p className="text-xs text-blue-600 mb-3">{ENTITY_HELP_TEXT[activeEntity]}</p>
+              ) : null}
               <textarea
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}

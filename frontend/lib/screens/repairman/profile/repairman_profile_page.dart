@@ -1,52 +1,93 @@
 import 'package:flutter/material.dart';
-
+import 'dart:async';
+import '../../../services/location_service.dart';
 import '../../location/location_picker_screen.dart';
-import '../../user/history/booking_history_page.dart';
-import '../../user/home/user_home_page.dart';
-import '../../user/profile/user_profile_page.dart';
+import '../dashboard/repairman_home_page.dart';
+import '../jobs/job_requests_page.dart';
 
-class RepairmanProfilePage extends StatelessWidget {
+class RepairmanProfilePage extends StatefulWidget {
   final String name;
-  final String rating;
-  final Map<String, dynamic>? profileData;
+  final double rating;
+  final Map<String, dynamic> profileData;
 
   const RepairmanProfilePage({
     super.key,
     required this.name,
     required this.rating,
-    this.profileData,
+    required this.profileData,
   });
 
-  String _value(List<String> keys, String fallback) {
-    final data = profileData ?? const <String, dynamic>{};
-    for (final key in keys) {
-      final value = data[key];
-      if (value != null && value.toString().trim().isNotEmpty) {
-        return value.toString();
+  @override
+  State<RepairmanProfilePage> createState() => _RepairmanProfilePageState();
+}
+
+class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
+  Timer? _locationTimer;
+  bool _isSharingLocation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startLocationSharing();
+  }
+
+  @override
+  void dispose() {
+    _locationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startLocationSharing() async {
+    try {
+      final position = await LocationService.getCurrentPosition();
+      if (position == null) return;
+
+      await LocationService.updateRepairmanLocation(
+        position.latitude,
+        position.longitude,
+      );
+      if (mounted) {
+        setState(() {
+          _isSharingLocation = true;
+        });
       }
+
+      _locationTimer = Timer.periodic(const Duration(seconds: 5), (
+        timer,
+      ) async {
+        final newPosition = await LocationService.getCurrentPosition();
+        if (newPosition == null) return;
+        await LocationService.updateRepairmanLocation(
+          newPosition.latitude,
+          newPosition.longitude,
+        );
+      });
+    } catch (e) {
+      // Handle error, e.g. permission denied
+      debugPrint('Location sharing error: $e');
     }
-    return fallback;
   }
 
   @override
   Widget build(BuildContext context) {
-    final rateLabel = _value(
-      ['hourlyRate', 'hourly_rate', 'custom_price'],
-      'Rate unavailable',
-    );
-    final availability = _value(
-      ['availability_status'],
-      'Availability not provided',
-    );
-    final bio = _value(
-      ['bio'],
-      'No profile description is available for this repairman yet.',
-    );
-    final experience = _value(['experience'], 'Not provided');
-    final address = _value(['address'], 'Not provided');
-    final verified = _value(['is_verified'], 'false').toLowerCase() == 'true'
-        ? 'Verified'
-        : 'Not verified';
+    final rateLabel = widget.profileData['hourlyRate']?.toString() ??
+        widget.profileData['hourly_rate']?.toString() ??
+        widget.profileData['custom_price']?.toString() ??
+        'Rate unavailable';
+    final availability =
+        widget.profileData['availability_status']?.toString() ??
+            'Availability not provided';
+    final bio = widget.profileData['bio']?.toString() ??
+        'No profile description is available for this repairman yet.';
+    final experience =
+        widget.profileData['experience']?.toString() ?? 'Not provided';
+    final address = widget.profileData['address']?.toString() ?? 'Not provided';
+    final verified =
+        (widget.profileData['is_verified']?.toString() ?? 'false')
+                    .toLowerCase() ==
+                'true'
+            ? 'Verified'
+            : 'Not verified';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -95,10 +136,11 @@ class RepairmanProfilePage extends StatelessWidget {
                         ),
                         const SizedBox(width: 5),
                         Text(
-                          name,
+                          widget.name,
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -123,23 +165,71 @@ class RepairmanProfilePage extends StatelessWidget {
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.star, color: Colors.orange, size: 16),
-                        Icon(Icons.star, color: Colors.orange, size: 16),
-                        Icon(Icons.star, color: Colors.orange, size: 16),
-                        Icon(Icons.star, color: Colors.orange, size: 16),
-                        Icon(Icons.star_half, color: Colors.orange, size: 16),
+                      children: [
+                        for (int i = 0; i < 5; i++)
+                          Icon(
+                            i < widget.rating.floor()
+                                ? Icons.star
+                                : (i < widget.rating &&
+                                        widget.rating % 1 != 0)
+                                    ? Icons.star_half
+                                    : Icons.star_border,
+                            color: Colors.orange,
+                            size: 16,
+                          ),
                       ],
                     ),
                     Text(
-                      rating,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      widget.rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                     Text(
                       availability,
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Colors.black54,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _isSharingLocation
+                            ? Colors.green.withAlpha(51)
+                            : Colors.orange.withAlpha(51),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _isSharingLocation
+                              ? Colors.green
+                              : Colors.orange,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isSharingLocation
+                                ? Icons.location_on
+                                : Icons.location_off,
+                            color: _isSharingLocation
+                                ? Colors.green
+                                : Colors.orange,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _isSharingLocation
+                                ? 'Live location sharing ON'
+                                : 'Location sharing OFF',
+                            style: TextStyle(
+                              color: _isSharingLocation
+                                  ? Colors.green
+                                  : Colors.orange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -196,14 +286,7 @@ class RepairmanProfilePage extends StatelessWidget {
                         ),
                         const SizedBox(height: 10),
                         ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const UserHome(),
-                              ),
-                            );
-                          },
+                          onPressed: () {},
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF3B82F6),
                             minimumSize: const Size(150, 40),
@@ -212,7 +295,7 @@ class RepairmanProfilePage extends StatelessWidget {
                             ),
                           ),
                           child: const Text(
-                            'Book Now',
+                            'Edit Profile',
                             style: TextStyle(color: Colors.white),
                           ),
                         ),
@@ -228,11 +311,14 @@ class RepairmanProfilePage extends StatelessWidget {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 3,
         selectedItemColor: Colors.orange,
-        unselectedItemColor: Colors.orange.withOpacity(0.5),
+        unselectedItemColor: Colors.orange.withAlpha(128),
         showUnselectedLabels: true,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Booking'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_month),
+            label: 'Booking',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Map'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
@@ -240,22 +326,19 @@ class RepairmanProfilePage extends StatelessWidget {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const UserHome()),
+              MaterialPageRoute(builder: (_) => const DashboardPage()),
             );
-          } else if (index == 1) {
+          }
+          if (index == 1) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const BookingHistoryPage()),
+              MaterialPageRoute(builder: (_) => const JobRequestsPage()),
             );
-          } else if (index == 2) {
+          }
+          if (index == 2) {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const LocationPickerScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const UserProfilePage()),
             );
           }
         },

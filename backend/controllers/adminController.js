@@ -12,6 +12,7 @@ const COLLECTION_MAP = {
   settings: "accounts",
   accounts: "accounts",
   locations: "locations",
+  cities: "cities",
 };
 
 const ALLOWED_COLLECTIONS = new Set([
@@ -23,6 +24,7 @@ const ALLOWED_COLLECTIONS = new Set([
   "payments",
   "reviews",
   "locations",
+  "cities",
 ]);
 
 const resolveCollection = (entity = "") => {
@@ -30,6 +32,58 @@ const resolveCollection = (entity = "") => {
   const collection = COLLECTION_MAP[key] || key;
   if (!ALLOWED_COLLECTIONS.has(collection)) return null;
   return collection;
+};
+
+const coerceBoolean = (value, fallback) => {
+  if (value === undefined) return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return Boolean(value);
+};
+
+const coerceNumber = (value, fallback = 0) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeServicePayload = (payload = {}, isCreate = false) => {
+  const normalized = { ...payload };
+
+  const serviceName = payload.service_name ?? payload.name;
+  if (serviceName !== undefined) normalized.service_name = String(serviceName).trim();
+
+  const description = payload.description;
+  if (description !== undefined) normalized.description = String(description).trim();
+
+  const category = payload.category;
+  if (category !== undefined) normalized.category = String(category).trim();
+
+  const basePrice = payload.base_price ?? payload.price;
+  if (basePrice !== undefined) normalized.base_price = coerceNumber(basePrice, 0);
+
+  normalized.is_active = coerceBoolean(payload.is_active, isCreate ? true : payload.is_active);
+
+  delete normalized.name;
+  delete normalized.price;
+
+  return normalized;
+};
+
+const normalizeEntityPayload = (collection, payload = {}, isCreate = false) => {
+  if (collection === "services") return normalizeServicePayload(payload, isCreate);
+  if (collection === "cities") {
+    return {
+      ...payload,
+      name: String(payload.name || payload.city || "").trim(),
+      is_active: coerceBoolean(payload.is_active, isCreate ? true : payload.is_active),
+    };
+  }
+  return { ...payload };
 };
 
 const toMillis = (value) => {
@@ -66,6 +120,7 @@ const getPrimaryText = (collection, row) => {
   if (collection === "reviews") return `Booking ${row.booking_id || "-"}`;
   if (collection === "accounts") return row.username || row.email || row.id;
   if (collection === "locations") return row.repairman_id || row.id;
+  if (collection === "cities") return row.name || row.city || row.id;
   return row.id;
 };
 
@@ -78,6 +133,7 @@ const getSecondaryText = (collection, row) => {
   if (collection === "reviews") return row.comment || "No comment";
   if (collection === "accounts") return row.email || row.role || "No details";
   if (collection === "locations") return `${row.latitude || "-"}, ${row.longitude || "-"}`;
+  if (collection === "cities") return row.state || row.country || "City";
   return "No details";
 };
 
@@ -88,6 +144,7 @@ const getStatusText = (collection, row) => {
   if (collection === "payments") return row.payment_status || "unknown";
   if (collection === "reviews") return `${toAmount(row.rating)}/5`;
   if (collection === "accounts") return row.is_active === false ? "disabled" : "active";
+  if (collection === "cities") return row.is_active === false ? "inactive" : "active";
   return "active";
 };
 
@@ -111,7 +168,7 @@ const buildActivityRows = (collection, docs) =>
 
 exports.getDashboardSummary = async (req, res) => {
   try {
-    const [accountsSnap, usersSnap, repairmenSnap, servicesSnap, bookingsSnap, paymentsSnap, reviewsSnap] =
+    const [accountsSnap, usersSnap, repairmenSnap, servicesSnap, bookingsSnap, paymentsSnap, reviewsSnap, citiesSnap] =
       await Promise.all([
         db.collection("accounts").get(),
         db.collection("users").get(),
@@ -120,6 +177,7 @@ exports.getDashboardSummary = async (req, res) => {
         db.collection("bookings").get(),
         db.collection("payments").get(),
         db.collection("reviews").get(),
+        db.collection("cities").get(),
       ]);
 
     const accounts = accountsSnap.docs.map((doc) => doc.data());
@@ -156,6 +214,7 @@ exports.getDashboardSummary = async (req, res) => {
         bookings: bookingsSnap.size,
         payments: paymentsSnap.size,
         reviews: reviewsSnap.size,
+        cities: citiesSnap ? citiesSnap.size : 0,
       },
     });
   } catch (error) {
@@ -212,7 +271,8 @@ exports.createEntity = async (req, res) => {
     const collection = resolveCollection(entity);
     if (!collection) return res.status(400).json({ message: "Unsupported entity" });
 
-    const payload = { ...(req.body || {}), created_at: new Date(), updated_at: new Date() };
+    const normalized = normalizeEntityPayload(collection, req.body || {}, true);
+    const payload = { ...normalized, created_at: new Date(), updated_at: new Date() };
     const ref = await db.collection(collection).add(payload);
     return res.status(201).json({ message: "Created", id: ref.id });
   } catch (error) {
@@ -227,7 +287,8 @@ exports.updateEntity = async (req, res) => {
     if (!collection) return res.status(400).json({ message: "Unsupported entity" });
     if (!id) return res.status(400).json({ message: "id is required" });
 
-    const patch = { ...(req.body || {}), updated_at: new Date() };
+    const normalized = normalizeEntityPayload(collection, req.body || {});
+    const patch = { ...normalized, updated_at: new Date() };
     delete patch.id;
     await db.collection(collection).doc(id).set(patch, { merge: true });
     return res.json({ message: "Updated" });
@@ -262,6 +323,7 @@ exports.getCollections = async (req, res) => {
       "reviews",
       "accounts",
       "locations",
+      "cities",
       "reports",
       "settings",
     ],

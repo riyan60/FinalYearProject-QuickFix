@@ -8,10 +8,17 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as latlng;
 
+import '../../services/auth_service.dart';
+
 class LocationPickerScreen extends StatefulWidget {
-  const LocationPickerScreen({super.key, this.initialLocation});
+  const LocationPickerScreen({
+    super.key,
+    this.initialLocation,
+    this.initialLabel,
+  });
 
   final latlng.LatLng? initialLocation;
+  final String? initialLabel;
 
   @override
   State<LocationPickerScreen> createState() => _LocationPickerScreenState();
@@ -26,6 +33,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   bool _locationPermissionDenied = false;
   String _searchError = '';
   String _locationStatus = '';
+  String _selectedLabel = '';
   late LatLng _cameraStart;
   LatLng? _selectedLocation;
   LatLng? _currentLocation;
@@ -40,13 +48,24 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   void initState() {
     super.initState();
-    final initial = widget.initialLocation;
+    final session = AuthService.currentSession ?? const <String, dynamic>{};
+    final sessionLatitude = double.tryParse('${session['latitude'] ?? ''}');
+    final sessionLongitude = double.tryParse('${session['longitude'] ?? ''}');
+    final fallbackInitial = sessionLatitude != null && sessionLongitude != null
+        ? latlng.LatLng(sessionLatitude, sessionLongitude)
+        : null;
+    final initial = widget.initialLocation ?? fallbackInitial;
+    final fallbackLabel = (session['city'] ?? '').toString().trim();
     _cameraStart = LatLng(
       initial?.latitude ?? 20.5937,
       initial?.longitude ?? 78.9629,
     );
     if (initial != null) {
       _selectedLocation = LatLng(initial.latitude, initial.longitude);
+      _selectedLabel = (widget.initialLabel ?? fallbackLabel).trim();
+      if (_selectedLabel.isNotEmpty) {
+        _locationStatus = 'Selected: $_selectedLabel';
+      }
     }
     if (_googleMapsSupported) {
       _initializeCurrentLocation();
@@ -64,7 +83,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   Future<void> _initializeCurrentLocation() async {
     setState(() {
       _isFetchingLocation = true;
-      _locationStatus = 'Fetching current location...';
+      if (_selectedLocation == null) {
+        _locationStatus = 'Fetching current location...';
+      }
       _locationPermissionDenied = false;
     });
 
@@ -83,9 +104,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
           permission == LocationPermission.deniedForever) {
         setState(() {
           _locationPermissionDenied = true;
-          _locationStatus = permission == LocationPermission.deniedForever
-              ? 'Location permission is permanently denied.'
-              : 'Location permission was denied.';
+          if (_selectedLocation == null) {
+            _locationStatus = permission == LocationPermission.deniedForever
+                ? 'Location permission is permanently denied.'
+                : 'Location permission was denied.';
+          }
         });
         return;
       }
@@ -111,7 +134,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _locationStatus = e.toString().replaceFirst('Exception: ', '');
+        if (_selectedLocation == null) {
+          _locationStatus = e.toString().replaceFirst('Exception: ', '');
+        }
       });
     } finally {
       if (mounted) {
@@ -207,6 +232,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     final point = LatLng(result.latitude, result.longitude);
     setState(() {
       _selectedLocation = point;
+      _selectedLabel = result.displayName;
       _searchResults = [];
       _searchError = '';
       _searchController.text = result.displayName;
@@ -265,11 +291,14 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             _mapController = controller;
             if (_currentLocation != null) {
               _moveTo(_currentLocation!);
+            } else if (_selectedLocation != null) {
+              _moveTo(_selectedLocation!);
             }
           },
           onTap: (position) {
             setState(() {
               _selectedLocation = position;
+              _selectedLabel = '';
             });
           },
           myLocationEnabled: _currentLocation != null,
@@ -385,15 +414,17 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 color: Colors.white,
                 child: Padding(
                   padding: const EdgeInsets.all(10),
-                  child: Text(
-                    _selectedLocation == null
-                        ? (_locationStatus.isNotEmpty
-                              ? _locationStatus
-                              : 'Tap on map to place marker')
+                   child: Text(
+                     _selectedLocation == null
+                         ? (_locationStatus.isNotEmpty
+                               ? _locationStatus
+                               : 'Tap on map to place marker')
+                        : _selectedLabel.isNotEmpty
+                        ? 'Selected: $_selectedLabel'
                         : 'Selected: ${_selectedLocation!.latitude.toStringAsFixed(5)}, ${_selectedLocation!.longitude.toStringAsFixed(5)}',
-                  ),
-                ),
-              ),
+                   ),
+                 ),
+               ),
               if (_locationPermissionDenied)
                 Container(
                   width: double.infinity,
@@ -406,8 +437,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     color: Colors.orange.shade50,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'Allow location permission to show your live device location.',
+                  child: Text(
+                    _selectedLocation != null
+                        ? 'Live location permission is denied. Showing your saved pinned location instead.'
+                        : 'Allow location permission to show your live device location.',
                   ),
                 ),
             ],

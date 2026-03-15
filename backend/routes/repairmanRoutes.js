@@ -168,9 +168,31 @@ router.put(
   allowRoles("repairman"),
   async (req, res) => {
     try {
-      const { name, address, latitude, longitude, experience, bio } = req.body;
+      const {
+        name,
+        address,
+        latitude,
+        longitude,
+        experience,
+        bio,
+        skills,
+        hourlyRate,
+        hourly_rate,
+        specialization,
+      } = req.body;
 
       const update = { updated_at: new Date() };
+
+      const normalizedSkills =
+        skills === undefined
+          ? undefined
+          : Array.isArray(skills)
+          ? skills.map((skill) => String(skill).trim()).filter(Boolean)
+          : String(skills)
+              .split(",")
+              .map((skill) => skill.trim())
+              .filter(Boolean);
+      const normalizedHourlyRate = Number(hourlyRate ?? hourly_rate);
 
       if (name !== undefined) update.name = name;
       if (address !== undefined) update.address = address;
@@ -178,6 +200,16 @@ router.put(
       if (longitude !== undefined) update.longitude = Number(longitude);
       if (experience !== undefined) update.experience = Number(experience);
       if (bio !== undefined) update.bio = bio;
+      if (normalizedSkills !== undefined) update.skills = normalizedSkills;
+      if (specialization !== undefined) update.specialization = specialization;
+      else if (normalizedSkills !== undefined) {
+        update.specialization = normalizedSkills[0] || "";
+      }
+      if (hourlyRate !== undefined || hourly_rate !== undefined) {
+        update.hourly_rate = Number.isFinite(normalizedHourlyRate)
+          ? normalizedHourlyRate
+          : 0;
+      }
 
       await db.collection("repairmen").doc(req.user.userId).update(update);
 
@@ -188,7 +220,96 @@ router.put(
   }
 );
 
-// 7️⃣ Repairman: Earnings (completed bookings)
+// 7️⃣ Repairman: Get my jobs (optional status filter)
+router.get("/me/jobs", authMiddleware, allowRoles("repairman"), async (req, res) => {
+  try {
+    const repairmanId = req.user.userId;
+    const { status } = req.query;
+
+    let q = db.collection("bookings").where("repairman_id", "==", repairmanId);
+    if (status) q = q.where("status", "==", status);
+
+    const snap = await q.get();
+    const jobs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return res.json({ jobs });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// 8️⃣ Accept job (pending -> accepted)
+router.post("/me/jobs/:bookingId/accept", authMiddleware, allowRoles("repairman"), async (req, res) => {
+  try {
+    const repairmanId = req.user.userId;
+    const { bookingId } = req.params;
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+    if (!bookingSnap.exists) return res.status(404).json({ message: "Booking not found" });
+    const booking = bookingSnap.data();
+    if (booking.repairman_id !== repairmanId) return res.status(403).json({ message: "Not your booking" });
+    if (booking.status !== "pending") return res.status(400).json({ message: "Cannot accept non-pending booking" });
+
+    await bookingRef.update({
+      status: "accepted",
+      accepted_at: new Date(),
+      updated_at: new Date()
+    });
+    return res.json({ message: "Job accepted" });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// 9️⃣ Start job (accepted -> in_progress)
+router.post("/me/jobs/:bookingId/start", authMiddleware, allowRoles("repairman"), async (req, res) => {
+  try {
+    const repairmanId = req.user.userId;
+    const { bookingId } = req.params;
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+    if (!bookingSnap.exists) return res.status(404).json({ message: "Booking not found" });
+    const booking = bookingSnap.data();
+    if (booking.repairman_id !== repairmanId) return res.status(403).json({ message: "Not your booking" });
+    if (booking.status !== "accepted") return res.status(400).json({ message: "Cannot start non-accepted booking" });
+
+    await bookingRef.update({
+      status: "in_progress",
+      started_at: new Date(),
+      updated_at: new Date()
+    });
+    return res.json({ message: "Job started" });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// 🔟 Complete job (in_progress -> completed)
+router.post("/me/jobs/:bookingId/complete", authMiddleware, allowRoles("repairman"), async (req, res) => {
+  try {
+    const repairmanId = req.user.userId;
+    const { bookingId } = req.params;
+
+    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+    if (!bookingSnap.exists) return res.status(404).json({ message: "Booking not found" });
+    const booking = bookingSnap.data();
+    if (booking.repairman_id !== repairmanId) return res.status(403).json({ message: "Not your booking" });
+    if (booking.status !== "in_progress") return res.status(400).json({ message: "Cannot complete non-in-progress booking" });
+
+    await bookingRef.update({
+      status: "completed",
+      completed_at: new Date(),
+      updated_at: new Date()
+    });
+    return res.json({ message: "Job completed" });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// 7️⃣ Repairman: Earnings (completed bookings) - moved after jobs
 router.get(
   "/me/earnings",
   authMiddleware,

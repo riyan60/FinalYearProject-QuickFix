@@ -1,42 +1,40 @@
 import '../api_service.dart';
+import '../../models/booking_model.dart';
 
 class JobService {
   final ApiService _apiService = ApiService();
 
-  Future<List<dynamic>> getMyJobs({String? status}) async {
-    final response = await _apiService.get('/api/bookings/my');
-    final bookings = (response['bookings'] as List?) ?? const [];
-
-    if (status == null || status.isEmpty) {
-      return bookings;
-    }
-
-    return bookings.where((booking) {
-      if (booking is! Map) return false;
-      return (booking['status'] ?? '').toString().toLowerCase() ==
-          status.toLowerCase();
-    }).toList();
-  }
-
   Future<List<dynamic>> getJobRequests() async {
-    return getMyJobs(status: 'pending');
+    final response = await _apiService.get(
+      '/api/repairmen/me/jobs?status=pending',
+    );
+    return response['jobs'] ?? [];
   }
 
-  Future<Map<String, dynamic>> acceptJob(String jobId) async {
-    return _apiService.put('/api/bookings/$jobId/status', {
-      'status': 'accepted',
-    });
+  Future<List<dynamic>> getMyJobs({String? status}) async {
+    final params = status != null ? '?status=$status' : '';
+    final response = await _apiService.get('/api/repairmen/me/jobs$params');
+    return response['jobs'] ?? [];
   }
 
-  Future<Map<String, dynamic>> startJob(String jobId) async {
-    return _apiService.put('/api/bookings/$jobId/status', {
-      'status': 'in_progress',
-    });
+  Future<Map<String, dynamic>> acceptJob(String bookingId) async {
+    return await _apiService.post(
+      '/api/repairmen/me/jobs/$bookingId/accept',
+      {},
+    );
   }
 
-  Future<Map<String, dynamic>> completeJob(String jobId) async {
-    return _apiService.put('/api/bookings/$jobId/status', {
-      'status': 'completed',
-    });
+  Future<Map<String, dynamic>> startJob(String bookingId) async {
+    return await _apiService.post(
+      '/api/repairmen/me/jobs/$bookingId/start',
+      {},
+    );
+  }
+
+  Future<Map<String, dynamic>> completeJob(String bookingId) async {
+    return await _apiService.post(
+      '/api/repairmen/me/jobs/$bookingId/complete',
+      {},
+    );
   }
 }

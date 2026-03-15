@@ -175,7 +175,7 @@ class ChatBubble extends StatelessWidget {
                 bottomRight: Radius.circular(isSender ? 0 : 15),
               ),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5, offset: const Offset(0, 2)),
+                BoxShadow(color: Colors.black.withAlpha(8), blurRadius: 5, offset: const Offset(0, 2)),
               ],
             ),
             child: Text(message, style: const TextStyle(fontSize: 14, color: Colors.black87)),

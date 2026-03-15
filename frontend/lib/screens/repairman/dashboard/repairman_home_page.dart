@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../services/repairman/job_service.dart';
+import 'package:provider/provider.dart';
 import '../jobs/active_jobs_page.dart';
 import '../jobs/completed_jobs_page.dart';
+import '../../../providers/repairman/job_provider.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -12,12 +13,19 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  final JobService _jobService = JobService();
-  late final Future<int> _pendingJobsFuture = _loadPendingJobs();
+  late final JobProvider jobProvider;
+  late final Future<int> _pendingJobsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    jobProvider = Provider.of<JobProvider>(context, listen: false);
+    _pendingJobsFuture = _loadPendingJobs();
+  }
 
   Future<int> _loadPendingJobs() async {
-    final jobs = await _jobService.getJobRequests();
-    return jobs.length;
+    await jobProvider.loadJobs(status: 'pending');
+    return jobProvider.jobs.length;
   }
 
   @override
@@ -33,7 +41,10 @@ class _DashboardPageState extends State<DashboardPage> {
             SizedBox(width: 8),
             Text(
               'QuickFix',
-              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -76,12 +87,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     icon: Icons.calendar_month_outlined,
                     color: const Color(0xFF99CCFF),
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CompletedJobsPage(),
-                        ),
-                      );
+                      Navigator.pushNamed(context, '/job-requests');
                     },
                   ),
                   _buildMenuCard(
@@ -89,12 +95,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     icon: Icons.settings_outlined,
                     color: const Color(0xFF99CCFF),
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ActiveJobsPage(),
-                        ),
-                      );
+                      Navigator.pushNamed(context, '/job-requests');
                     },
                   ),
                   _buildMenuCard(
@@ -103,6 +104,22 @@ class _DashboardPageState extends State<DashboardPage> {
                     color: const Color(0xFFFFCC99),
                     onTap: () {
                       Navigator.pushNamed(context, '/earnings');
+                    },
+                  ),
+                  _buildMenuCard(
+                    title: 'Profile',
+                    icon: Icons.person,
+                    color: const Color(0xFF99CCFF),
+                    onTap: () {
+                      Navigator.pushNamed(context, '/repairman-profile');
+                    },
+                  ),
+                  _buildMenuCard(
+                    title: 'Map',
+                    icon: Icons.location_on,
+                    color: const Color(0xFFFFCC99),
+                    onTap: () {
+                      Navigator.pushNamed(context, '/repairman-map');
                     },
                   ),
                 ],
@@ -118,7 +135,10 @@ class _DashboardPageState extends State<DashboardPage> {
         currentIndex: 0,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Booking'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_today),
+            label: 'Booking',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Map'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
@@ -158,7 +178,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         child: Icon(
                           icon,
                           size: 40,
-                          color: color.withOpacity(1.0),
+                          color: color.withAlpha(255),
                         ),
                       ),
                       const SizedBox(height: 12),

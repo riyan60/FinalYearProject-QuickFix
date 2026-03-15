@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'login_page.dart';
 import '../location/location_picker_screen.dart';
 import '../../services/api_service.dart';
+import '../../services/city_service.dart';
 
 class SignupRepairman extends StatefulWidget {
   const SignupRepairman({super.key});
@@ -15,7 +16,11 @@ class _SignupRepairmanState extends State<SignupRepairman> {
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _isLoading = false;
+  bool _isLoadingCities = true;
   LatLng? _selectedLocation;
+  final CityService _cityService = CityService();
+  List<String> _cities = [];
+  String? _selectedCity;
 
   // Skills dropdown
   final List<String> _skillsList = [
@@ -26,7 +31,9 @@ class _SignupRepairmanState extends State<SignupRepairman> {
     'Plumber',
     'Cleaning',
   ];
+  final List<int> _experienceYears = List<int>.generate(31, (index) => index);
   String? _selectedSkill;
+  int? _selectedExperience;
 
   // Text Controllers
   final TextEditingController _usernameController = TextEditingController();
@@ -37,9 +44,37 @@ class _SignupRepairmanState extends State<SignupRepairman> {
       TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _experienceController = TextEditingController();
   final TextEditingController _hourlyRateController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCities();
+  }
+
+  Future<void> _loadCities() async {
+    try {
+      final cities = await _cityService.getCities();
+      if (!mounted) return;
+      setState(() {
+        _cities = cities;
+        _selectedCity = cities.isNotEmpty ? cities.first : null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _cities = [];
+        _selectedCity = null;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingCities = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -50,7 +85,6 @@ class _SignupRepairmanState extends State<SignupRepairman> {
     _confirmPasswordController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _experienceController.dispose();
     _hourlyRateController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -76,6 +110,10 @@ class _SignupRepairmanState extends State<SignupRepairman> {
     }
     if (_addressController.text.trim().isEmpty) {
       _showError("Please enter your address");
+      return;
+    }
+    if ((_selectedCity ?? '').trim().isEmpty) {
+      _showError("Please select your city");
       return;
     }
     if (_selectedLocation == null) {
@@ -118,11 +156,12 @@ class _SignupRepairmanState extends State<SignupRepairman> {
           'password': _passwordController.text,
           'phone': _phoneController.text.trim(),
           'address': _addressController.text.trim(),
+          'city': _selectedCity!.trim(),
           'latitude': _selectedLocation!.latitude,
           'longitude': _selectedLocation!.longitude,
           'role': 'repairman',
           'skills': _selectedSkill ?? '',
-          'experience': _experienceController.text.trim(),
+          'experience': _selectedExperience ?? 0,
           'hourlyRate': double.tryParse(_hourlyRateController.text) ?? 0,
           'bio': _descriptionController.text.trim(),
         });
@@ -232,6 +271,40 @@ class _SignupRepairmanState extends State<SignupRepairman> {
               "Address",
               controller: _addressController,
             ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 15),
+              child: DropdownButtonFormField<String>(
+                initialValue: _selectedCity,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(
+                    Icons.location_city_outlined,
+                    color: Colors.grey,
+                  ),
+                  hintText: _isLoadingCities
+                      ? "Loading cities..."
+                      : "Select City",
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+                items: _cities.map((city) {
+                  return DropdownMenuItem(
+                    value: city,
+                    child: Text(city),
+                  );
+                }).toList(),
+                onChanged: _isLoadingCities || _cities.isEmpty
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedCity = value;
+                        });
+                      },
+              ),
+            ),
             const SizedBox(height: 4),
             SizedBox(
               width: double.infinity,
@@ -281,7 +354,7 @@ class _SignupRepairmanState extends State<SignupRepairman> {
             Padding(
               padding: const EdgeInsets.only(bottom: 15),
               child: DropdownButtonFormField<String>(
-                value: _selectedSkill,
+                initialValue: _selectedSkill,
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.build, color: Colors.grey),
                   hintText: "Select Skill",
@@ -305,10 +378,33 @@ class _SignupRepairmanState extends State<SignupRepairman> {
                 },
               ),
             ),
-            _buildSignupField(
-              Icons.work,
-              "Experience (e.g., 5 years)",
-              controller: _experienceController,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 15),
+              child: DropdownButtonFormField<int>(
+                initialValue: _selectedExperience,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.work, color: Colors.grey),
+                  hintText: "Select experience in years",
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+                items: _experienceYears.map((years) {
+                  final label = years == 1 ? '1 year' : '$years years';
+                  return DropdownMenuItem(
+                    value: years,
+                    child: Text(label),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedExperience = value;
+                  });
+                },
+              ),
             ),
             _buildSignupField(
               Icons.attach_money,
