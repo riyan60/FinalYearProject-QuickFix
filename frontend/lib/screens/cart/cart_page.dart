@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/cart_provider.dart';
 import '../../models/service_model.dart';
+import '../../../services/api_service.dart';
 
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
@@ -89,11 +90,24 @@ class CartPage extends StatelessWidget {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: () {
-                          // TODO: Implement booking logic
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Booking feature coming soon!')),
-                          );
+                        onPressed: () async {
+                          try {
+                            // Simple booking data
+                            final bookingData = {
+                              'services': cartProvider.cartItems.map((s) => {'name': s.name, 'price': s.price}).toList(),
+                              'total': cartProvider.totalPrice,
+                            };
+                            await ApiService().post('/api/bookings', bookingData);
+                            cartProvider.clearCart();
+                            Navigator.pushNamed(context, '/booking-history');
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Booking created successfully!')),
+                            );
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Booking failed: $e')),
+                            );
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange,
@@ -117,3 +131,4 @@ class CartPage extends StatelessWidget {
     );
   }
 }
+

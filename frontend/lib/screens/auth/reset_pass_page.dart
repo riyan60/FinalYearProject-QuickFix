@@ -50,8 +50,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   child: Row(
                     children: [
                       GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacementNamed(context, AppRoutes.login);
+onTap: () {
+                          Navigator.pushReplacementNamed(context, '/login');
                         },
                         child: const Icon(Icons.arrow_back, color: Colors.white),
                       ),

@@ -1,29 +1,8 @@
-# Master Remediation TODO List
+# TODO: Fix errors in main.dart and user_emergency_service_booking.dart
 
-## 1. Security & Environment (High Priority)
-- [x] Provide instructions to remove .env and serviceAccountKey.json from Git history
-- [x] Create .env.example template for backend
-- [ ] Update Flutter api_constants.dart with environment-based configuration
-
-## 2. Backend Infrastructure & Routing
-- [ ] Add npm scripts (start, dev) to package.json
-- [ ] Consolidate registration logic - remove duplicate registerClient from clientController
-- [ ] Implement robust logout with token invalidation in authController
-- [ ] Implement RBAC: restrict POST /services to admin/repairman roles
-
-## 3. Flutter Architecture Refactoring
-- [ ] Refactor signup_user.dart to use ApiService instead of direct http calls
-- [ ] Update api_service.dart to use api_constants.dart for baseUrl
-- [ ] Ensure consistent base URL across the app
-
-## 4. Feature Implementation (Code Scaffolding)
-- [ ] Create Rating/Review system (backend schema and controller)
-- [ ] Create real-time booking status (WebSocket/Firebase)
-- [ ] Outline Search/Filter UI logic
-- [ ] Outline Profile management screen
-- [ ] Outline Booking status listener
-
----
-
-## Implementation Status:
-- [ ] NOT STARTED
+## Steps:
+- [x] 1. Create this TODO.md
+- [x] 2. Edit main.dart (add imports, fix duplicate routes)
+- [x] 3. Edit user_emergency_service_booking.dart (fix import, remove duplicate button, use AppRoutes)
+- [x] 4. Run flutter analyze && flutter run to test
+- [x] 5. Mark complete

@@ -29,7 +29,12 @@ class ApiService {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to load data: ${response.statusCode}');
+      try {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? errorData['error'] ?? 'Failed to load data: ${response.statusCode}');
+      } catch (_) {
+        throw Exception('Failed to load data: ${response.statusCode}');
+      }
     }
   }
 
@@ -61,7 +66,12 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to post data: ${response.statusCode}');
+      try {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? errorData['error'] ?? 'Failed to post data: ${response.statusCode}');
+      } catch (_) {
+        throw Exception('Failed to post data: ${response.statusCode}');
+      }
     }
   }
 
@@ -77,7 +87,13 @@ class ApiService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to update data: ${response.statusCode}');
+      try {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? errorData['error'] ?? 'Failed to update data: ${response.statusCode}');
+      } catch (_) {
+        throw Exception('Failed to update data: ${response.statusCode}');
+      }
     }
   }
 }
+

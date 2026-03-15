@@ -40,7 +40,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (otp.length == 4) {
       // Check if OTP is "1234"
       if (otp == "1234") {
-        Navigator.pushReplacementNamed(context, AppRoutes.resetPassword);
+Navigator.pushReplacementNamed(context, '/reset-password');
       } else {
         // Show error for invalid OTP
         ScaffoldMessenger.of(context).showSnackBar(
