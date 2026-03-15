@@ -227,7 +227,11 @@ router.get("/me/jobs", authMiddleware, allowRoles("repairman"), async (req, res)
     const { status } = req.query;
 
     let q = db.collection("bookings").where("repairman_id", "==", repairmanId);
-    if (status) q = q.where("status", "==", status);
+    if (status === "active") {
+      q = q.where("status", "in", ["accepted", "in_progress"]);
+    } else if (status) {
+      q = q.where("status", "==", status);
+    }
 
     const snap = await q.get();
     const jobs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));

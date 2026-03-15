@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:latlong2/latlong.dart' as latlong;
-import 'package:geolocator/geolocator.dart';
-import '../../../../models/booking_model.dart';
-import '../../../../core/utils/location_utils.dart';
+import '../../../models/booking_model.dart';
+import '../../../core/utils/location_utils.dart';
 
 class RepairmanTrackingScreen extends StatefulWidget {
   final Booking booking;

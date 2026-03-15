@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/user/cart_provider.dart';
 import 'providers/repairman/job_provider.dart';
@@ -13,6 +12,8 @@ import 'screens/repairman/earnings/earnings_page.dart';
 import 'screens/repairman/dashboard/repairman_home_page.dart';
 import 'screens/repairman/jobs/job_details.dart';
 import 'screens/repairman/jobs/job_requests_page.dart';
+import 'screens/repairman/profile/repairman_profile_route_page.dart';
+import 'screens/location/location_picker_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,8 +50,8 @@ class QuickFixApp extends StatelessWidget {
           '/earnings': (context) => const EarningsScreen(),
           '/booking-history': (context) => const BookingHistoryPage(),
           '/reset-password': (context) => const ResetPasswordPage(),
-          '/repairman-profile': (context) => const Placeholder(),
-          '/repairman-map': (context) => const Placeholder(),
+          '/repairman-profile': (context) => const RepairmanProfileRoutePage(),
+          '/repairman-map': (context) => const LocationPickerScreen(),
         },
       ),
     );

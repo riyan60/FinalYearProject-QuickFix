@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:provider/provider.dart';
-import '../jobs/active_jobs_page.dart';
-import '../jobs/completed_jobs_page.dart';
 import '../../../providers/repairman/job_provider.dart';
+import '../jobs/job_requests_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -83,19 +82,32 @@ class _DashboardPageState extends State<DashboardPage> {
                     },
                   ),
                   _buildMenuCard(
-                    title: 'Scheduled Days',
+                    title: 'Active Jobs',
                     icon: Icons.calendar_month_outlined,
                     color: const Color(0xFF99CCFF),
                     onTap: () {
-                      Navigator.pushNamed(context, '/job-requests');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const JobRequestsPage(initialStatus: 'active'),
+                        ),
+                      );
                     },
                   ),
                   _buildMenuCard(
-                    title: 'In Progress',
+                    title: 'Completed',
                     icon: Icons.settings_outlined,
                     color: const Color(0xFF99CCFF),
                     onTap: () {
-                      Navigator.pushNamed(context, '/job-requests');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const JobRequestsPage(
+                            initialStatus: 'completed',
+                          ),
+                        ),
+                      );
                     },
                   ),
                   _buildMenuCard(
@@ -133,6 +145,15 @@ class _DashboardPageState extends State<DashboardPage> {
         selectedItemColor: Colors.orange,
         unselectedItemColor: Colors.grey,
         currentIndex: 0,
+        onTap: (index) {
+          if (index == 1) {
+            Navigator.pushNamed(context, '/job-requests');
+          } else if (index == 2) {
+            Navigator.pushNamed(context, '/repairman-map');
+          } else if (index == 3) {
+            Navigator.pushNamed(context, '/repairman-profile');
+          }
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(
