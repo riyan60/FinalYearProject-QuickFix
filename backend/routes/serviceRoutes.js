@@ -9,7 +9,7 @@ router.get("/", serviceController.getAllServices);
 router.get("/:id", serviceController.getServiceById);
 
 // Admin only
-router.post("/", authMiddleware, allowRoles("admin"), serviceController.createService);
+router.post("/", authMiddleware, allowRoles("repairman","admin"), serviceController.createService);
 router.put("/:id", authMiddleware, allowRoles("admin"), serviceController.updateService);
 router.delete("/:id", authMiddleware, allowRoles("admin"), serviceController.deleteService);
 
