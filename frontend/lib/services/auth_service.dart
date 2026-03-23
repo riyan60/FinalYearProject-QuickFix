@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../mock/mock_users.dart';
 import 'api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,6 +17,14 @@ class AuthService {
       ...?_currentSession,
       ...profile,
     };
+  }
+
+  static Future<void> updateSessionData(Map<String, dynamic> data) async {
+    _currentSession = {
+      ...?_currentSession,
+      ...data,
+    };
+    await _persistSession();
   }
 
   static Future<void> restoreSession() async {
@@ -123,20 +132,41 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> getCurrentProfile() async {
-    final response = await _apiService.get('/api/auth/me');
-    final profile = response['profile'];
-    if (profile is Map) {
-      mergeSessionProfile(Map<String, dynamic>.from(profile));
+    final mergedProfile = <String, dynamic>{};
+    var accountId = _currentSession?['accountId'];
+    var role = _currentSession?['role'];
+
+    final localProfile = _findMockUserProfile();
+    if (localProfile.isNotEmpty) {
+      mergedProfile.addAll(localProfile);
     }
-    if (response['accountId'] != null || response['role'] != null) {
+
+    try {
+      final response = await _apiService.get('/api/auth/me');
+      final profile = response['profile'];
+      if (profile is Map) {
+        mergedProfile.addAll(Map<String, dynamic>.from(profile));
+      }
+      accountId = response['accountId'] ?? accountId;
+      role = response['role'] ?? role;
+    } catch (_) {
+      // Keep mock and Firebase data when the API is unavailable.
+    }
+
+    if (mergedProfile.isNotEmpty || accountId != null || role != null) {
       _currentSession = {
         ...?_currentSession,
-        if (response['accountId'] != null) 'accountId': response['accountId'],
-        if (response['role'] != null) 'role': response['role'],
+        ...mergedProfile,
+        if (accountId != null) 'accountId': accountId,
+        if (role != null) 'role': role,
       };
     }
     await _persistSession();
-    return response;
+    return {
+      'accountId': accountId,
+      'role': role,
+      'profile': Map<String, dynamic>.from(mergedProfile),
+    };
   }
 
   Future<Map<String, dynamic>> updateCurrentProfile(
@@ -161,5 +191,34 @@ class AuthService {
       _currentSession = null;
       await _persistSession();
     }
+  }
+
+  Map<String, dynamic> _findMockUserProfile() {
+    final session = _currentSession ?? const <String, dynamic>{};
+    final accountId = (session['accountId'] ?? session['id'] ?? '')
+        .toString()
+        .trim();
+    final email = (session['email'] ?? '').toString().trim().toLowerCase();
+    final name = (session['name'] ?? session['username'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    for (final user in mockUsers) {
+      final userId = (user['id'] ?? '').toString().trim();
+      final userEmail = (user['email'] ?? '').toString().trim().toLowerCase();
+      final userName = (user['name'] ?? '').toString().trim().toLowerCase();
+
+      final matches =
+          (accountId.isNotEmpty && userId == accountId) ||
+          (email.isNotEmpty && userEmail == email) ||
+          (name.isNotEmpty && userName == name);
+
+      if (matches) {
+        return Map<String, dynamic>.from(user);
+      }
+    }
+
+    return const <String, dynamic>{};
   }
 }

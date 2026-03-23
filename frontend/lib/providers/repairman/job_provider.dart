@@ -30,10 +30,19 @@ class JobProvider extends ChangeNotifier {
     try {
       switch (status) {
         case 'accepted':
-          await _jobService.acceptJob(bookingId);
+          await _jobService.acceptJob(bookingId, fallbackStatus: 'accepted');
+          break;
+        case 'booking_confirmed':
+          await _jobService.acceptJob(
+            bookingId,
+            fallbackStatus: 'booking_confirmed',
+          );
           break;
         case 'in_progress':
-          await _jobService.startJob(bookingId);
+          await _jobService.startJob(bookingId, fallbackStatus: 'in_progress');
+          break;
+        case 'reached_destination':
+          await _jobService.reachDestination(bookingId);
           break;
         case 'completed':
           await _jobService.completeJob(bookingId);

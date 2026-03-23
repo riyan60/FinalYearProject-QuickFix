@@ -93,10 +93,18 @@ exports.register = async (req, res) => {
           ? normalizedHourlyRate
           : 0,
         availability_status: "available",
+        emergency_service_enabled: false,
         rating: 0,
         bio: bio || "",
         profile_pic: "",
         is_verified: false,
+        verification_status: "unverified",
+        verification_submitted_at: null,
+        verification_reviewed_at: null,
+        verification_reviewed_by: "",
+        verification_rejection_reason: "",
+        verification_profile: {},
+        verification_documents: {},
         created_at: new Date(),
       });
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/utils/money_utils.dart';
 import '../../../models/service_model.dart';
 import '../../../providers/user/cart_provider.dart';
 import '../../../services/user/service_catalog_service.dart';
@@ -286,7 +287,7 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Rs ${service.price.toStringAsFixed(0)}',
+                      MoneyUtils.format(service.price),
                       style: const TextStyle(
                         fontSize: 14,
                         color: Colors.orange,

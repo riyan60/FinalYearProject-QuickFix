@@ -1,0 +1,28 @@
+List<Map<String, dynamic>> mockUsers = [
+  {
+    "id": "mockUser1",
+    "accountId": "mockUser1",
+    "name": "John Doe",
+    "username": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "+91 9876543210",
+    "role": "user",
+    "city": "Mumbai",
+    "latitude": 19.0760,
+    "longitude": 72.8777,
+    "address": "Andheri West, Mumbai",
+  },
+  {
+    "id": "mockUser2",
+    "accountId": "mockUser2",
+    "name": "Jane Doe",
+    "username": "Jane Doe",
+    "email": "jane.doe@example.com",
+    "phone": "+91 9123456780",
+    "role": "user",
+    "city": "Pune",
+    "latitude": 18.5204,
+    "longitude": 73.8567,
+    "address": "Shivajinagar, Pune",
+  },
+];

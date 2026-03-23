@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../core/utils/money_utils.dart';
+import '../../../providers/notification_provider.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/wallet_service.dart';
+import '../../../widgets/notification_bell_button.dart';
 import '../../auth/login_page.dart';
 import '../../location/location_picker_screen.dart';
 import '../cart/cart_page.dart';
@@ -35,17 +40,50 @@ class InfoPage extends StatelessWidget {
   }
 }
 
-class UserProfilePage extends StatelessWidget {
+class UserProfilePage extends StatefulWidget {
   final dynamic userData;
 
   const UserProfilePage({super.key, this.userData});
 
+  @override
+  State<UserProfilePage> createState() => _UserProfilePageState();
+}
+
+class _UserProfilePageState extends State<UserProfilePage> {
+  final WalletService _walletService = WalletService();
+  final TextEditingController _walletTopUpController = TextEditingController();
+  double _walletBalance = 0;
+
   Map<String, dynamic> get _profileData {
     final session = AuthService.currentSession ?? <String, dynamic>{};
-    final incoming = userData is Map
-        ? Map<String, dynamic>.from(userData as Map)
+    final incoming = widget.userData is Map
+        ? Map<String, dynamic>.from(widget.userData as Map)
         : <String, dynamic>{};
     return {...session, ...incoming};
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWalletBalance();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<NotificationProvider>().sync();
+    });
+  }
+
+  @override
+  void dispose() {
+    _walletTopUpController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadWalletBalance() async {
+    final balance = await _walletService.getBalance();
+    if (!mounted) return;
+    setState(() {
+      _walletBalance = balance;
+    });
   }
 
   String _value(Map<String, dynamic> data, List<String> keys, String fallback) {
@@ -65,6 +103,61 @@ class UserProfilePage extends StatelessWidget {
         builder: (context) => InfoPage(title: title, body: body),
       ),
     );
+  }
+
+  Future<void> _showTopUpDialog() async {
+    _walletTopUpController.text = '';
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Top Up Wallet'),
+        content: TextField(
+          controller: _walletTopUpController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Amount',
+            hintText: 'Enter amount',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(
+                context,
+                double.tryParse(_walletTopUpController.text.trim()),
+              );
+            },
+            child: const Text('Add Money'),
+          ),
+        ],
+      ),
+    );
+
+    if (amount == null) return;
+
+    try {
+      final updated = await _walletService.topUp(amount);
+      if (!mounted) return;
+      setState(() {
+        _walletBalance = updated;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Wallet topped up successfully. Balance: ${MoneyUtils.format(updated)}',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   @override
@@ -87,6 +180,11 @@ class UserProfilePage extends StatelessWidget {
         title: const Text('Profile'),
         backgroundColor: const Color(0xFF4A90E2),
         actions: [
+          NotificationBellButton(
+            onTap: () {
+              Navigator.pushNamed(context, '/notifications');
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.shopping_cart, color: Colors.white),
             onPressed: () {
@@ -161,9 +259,64 @@ class UserProfilePage extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               children: [
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () {
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0F4C81), Color(0xFF3BA7B8)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'QuickFix Wallet',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Balance: ${MoneyUtils.format(_walletBalance)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Use wallet money while booking. Wallet deductions happen for bookings that are successfully saved in the database.',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      const SizedBox(height: 14),
+                      FilledButton(
+                        onPressed: _showTopUpDialog,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF0F4C81),
+                        ),
+                        child: const Text('Add Money'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildSection('Account Info', [
+                  _buildListTile(
+                    context,
+                    Icons.account_balance_wallet_outlined,
+                    'Wallet',
+                    onTap: _showTopUpDialog,
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.badge_outlined,
+                    'Account',
+                    onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -171,41 +324,14 @@ class UserProfilePage extends StatelessWidget {
                         ),
                       );
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF42A5F5),
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(180, 45),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: const Text(
-                      'Account details',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _buildSection('Account Info', [
-                  _buildListTile(
-                    context,
-                    Icons.badge_outlined,
-                    'Account',
-                    onTap: () => _openInfoPage(
-                      context,
-                      'Account',
-                      'Account ID: ${_value(data, ['accountId'], 'Unavailable')}\nRole: ${_value(data, ['role'], 'user')}\nLogin: $secondaryText',
-                    ),
                   ),
                   _buildListTile(
                     context,
                     Icons.notifications_none,
                     'Notifications',
-                    onTap: () => _openInfoPage(
-                      context,
-                      'Notifications',
-                      'Notifications are currently handled through in-app messages and this device\'s permission settings.',
-                    ),
+                    onTap: () {
+                      Navigator.pushNamed(context, '/notifications');
+                    },
                   ),
                   _buildListTile(
                     context,

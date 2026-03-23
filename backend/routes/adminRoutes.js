@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const adminController = require("../controllers/adminController");
+const verificationController = require("../controllers/verificationController");
 const authMiddleware = require("../middleware/authMiddleware");
 const { allowRoles } = require("../middleware/authMiddleware");
 
@@ -15,6 +16,8 @@ router.use(maybeAdminGuard);
 router.get("/collections", adminController.getCollections);
 router.get("/summary", adminController.getDashboardSummary);
 router.get("/activity", adminController.getRecentActivity);
+router.get("/verifications", verificationController.getPendingVerifications);
+router.post("/verifications/:repairmanId/review", verificationController.reviewVerification);
 router.get("/entities/:entity", adminController.getEntities);
 router.post("/entities/:entity", adminController.createEntity);
 router.patch("/entities/:entity/:id", adminController.updateEntity);

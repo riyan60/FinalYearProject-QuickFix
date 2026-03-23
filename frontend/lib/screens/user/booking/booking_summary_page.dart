@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/utils/money_utils.dart';
 import '../../../providers/user/cart_provider.dart';
 import '../cart/cart_page.dart';
 
@@ -25,7 +26,7 @@ class BookingSummaryPage extends StatelessWidget {
                           title: Text(service.name),
                           subtitle: Text(service.description),
                           trailing: Text(
-                            'Rs ${service.price.toStringAsFixed(2)}',
+                            MoneyUtils.format(service.price),
                           ),
                         ),
                       ),
@@ -44,7 +45,7 @@ class BookingSummaryPage extends StatelessWidget {
                                   style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 Text(
-                                  'Rs ${cartProvider.totalPrice.toStringAsFixed(2)}',
+                                  MoneyUtils.format(cartProvider.totalPrice),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),

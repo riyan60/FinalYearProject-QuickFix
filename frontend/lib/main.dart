@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/user/cart_provider.dart';
 import 'providers/repairman/job_provider.dart';
+import 'providers/notification_provider.dart';
 import 'services/auth_service.dart';
 import 'screens/auth/reset_pass_page.dart';
+import 'screens/notifications/notifications_page.dart';
 import 'screens/user/home/user_home_page.dart';
 import 'screens/user/history/booking_history_page.dart';
 
@@ -38,6 +40,9 @@ class QuickFixApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (context) => CartProvider()),
         ChangeNotifierProvider(create: (context) => JobProvider()),
+        ChangeNotifierProvider(
+          create: (context) => NotificationProvider()..initialize(),
+        ),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -52,6 +57,7 @@ class QuickFixApp extends StatelessWidget {
           '/reset-password': (context) => const ResetPasswordPage(),
           '/repairman-profile': (context) => const RepairmanProfileRoutePage(),
           '/repairman-map': (context) => const LocationPickerScreen(),
+          '/notifications': (context) => const NotificationsPage(),
         },
       ),
     );

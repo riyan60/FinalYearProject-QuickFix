@@ -1,5 +1,5 @@
 import 'package:geolocator/geolocator.dart';
-import '../../services/api_service.dart';
+import 'api_service.dart';
 
 class LocationService {
   static final ApiService _api = ApiService();

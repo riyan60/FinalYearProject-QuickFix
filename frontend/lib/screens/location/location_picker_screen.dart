@@ -34,6 +34,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   String _searchError = '';
   String _locationStatus = '';
   String _selectedLabel = '';
+  bool _preferSelectedLocation = false;
   late LatLng _cameraStart;
   LatLng? _selectedLocation;
   LatLng? _currentLocation;
@@ -62,6 +63,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     );
     if (initial != null) {
       _selectedLocation = LatLng(initial.latitude, initial.longitude);
+      _preferSelectedLocation = true;
       _selectedLabel = (widget.initialLabel ?? fallbackLabel).trim();
       if (_selectedLabel.isNotEmpty) {
         _locationStatus = 'Selected: $_selectedLabel';
@@ -124,12 +126,18 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
       setState(() {
         _currentLocation = point;
-        _cameraStart = point;
-        _locationStatus =
-            'Live location: ${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+        if (!_preferSelectedLocation) {
+          _cameraStart = point;
+          _selectedLocation = point;
+          _selectedLabel = 'Current location';
+          _locationStatus =
+              'Live location: ${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+        }
       });
 
-      await _moveTo(point);
+      if (!_preferSelectedLocation) {
+        await _moveTo(point);
+      }
       await _startLocationStream();
     } catch (e) {
       if (!mounted) return;
@@ -159,8 +167,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       final point = LatLng(position.latitude, position.longitude);
       setState(() {
         _currentLocation = point;
-        _locationStatus =
-            'Live location: ${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+        if (!_preferSelectedLocation) {
+          _selectedLocation = point;
+          _selectedLabel = 'Current location';
+          _locationStatus =
+              'Live location: ${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}';
+        }
       });
     });
   }
@@ -231,8 +243,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   void _selectSearchResult(_SearchResult result) {
     final point = LatLng(result.latitude, result.longitude);
     setState(() {
+      _preferSelectedLocation = true;
       _selectedLocation = point;
       _selectedLabel = result.displayName;
+      _locationStatus = 'Selected: ${result.displayName}';
       _searchResults = [];
       _searchError = '';
       _searchController.text = result.displayName;
@@ -251,7 +265,14 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               children: [
                 FloatingActionButton.small(
                   heroTag: 'current_location',
-                  onPressed: _isFetchingLocation ? null : _initializeCurrentLocation,
+                  onPressed: _isFetchingLocation
+                      ? null
+                      : () {
+                          setState(() {
+                            _preferSelectedLocation = false;
+                          });
+                          _initializeCurrentLocation();
+                        },
                   child: _isFetchingLocation
                       ? const SizedBox(
                           width: 18,
@@ -289,16 +310,19 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
           initialCameraPosition: CameraPosition(target: _cameraStart, zoom: 14),
           onMapCreated: (controller) {
             _mapController = controller;
-            if (_currentLocation != null) {
-              _moveTo(_currentLocation!);
-            } else if (_selectedLocation != null) {
+            if (_selectedLocation != null) {
               _moveTo(_selectedLocation!);
+            } else if (_currentLocation != null) {
+              _moveTo(_currentLocation!);
             }
           },
           onTap: (position) {
             setState(() {
+              _preferSelectedLocation = true;
               _selectedLocation = position;
               _selectedLabel = '';
+              _locationStatus =
+                  'Selected: ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}';
             });
           },
           myLocationEnabled: _currentLocation != null,

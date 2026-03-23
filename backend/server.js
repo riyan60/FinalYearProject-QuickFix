@@ -16,6 +16,7 @@ app.use("/api/bookings", require("./routes/bookingRoutes"));
 app.use("/api/location", require("./routes/locationRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
+app.use("/api/chat", require("./routes/chatRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 
 try {

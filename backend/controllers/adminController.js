@@ -112,10 +112,47 @@ const serialize = (value) => {
   return value;
 };
 
+const enrichBooking = async (row) => {
+  if (!row || !row.id) return row;
+
+  const enriched = { ...row };
+  const [userDoc, repairmanDoc, serviceDoc] = await Promise.all([
+    row.user_id ? db.collection("users").doc(String(row.user_id)).get() : null,
+    row.repairman_id ? db.collection("repairmen").doc(String(row.repairman_id)).get() : null,
+    row.service_id ? db.collection("services").doc(String(row.service_id)).get() : null,
+  ]);
+
+  if (userDoc && userDoc.exists) {
+    const user = userDoc.data() || {};
+    enriched.user_name = user.name || enriched.user_name || "";
+  }
+
+  if (repairmanDoc && repairmanDoc.exists) {
+    const repairman = repairmanDoc.data() || {};
+    enriched.repairman_name =
+      enriched.repairman_name || repairman.name || enriched.repairman_name || "";
+    enriched.specialty =
+      enriched.specialty || repairman.specialization || enriched.specialty || "";
+  }
+
+  if (serviceDoc && serviceDoc.exists) {
+    const service = serviceDoc.data() || {};
+    enriched.service_name = service.service_name || enriched.service_name || "";
+  }
+
+  return enriched;
+};
+
 const getPrimaryText = (collection, row) => {
   if (collection === "users" || collection === "repairmen") return row.name || row.account_id || row.id;
   if (collection === "services") return row.service_name || row.id;
-  if (collection === "bookings") return `Booking ${row.id}`;
+  if (collection === "bookings") {
+    const label =
+      row.booking_type === "direct_repairman"
+        ? row.specialty || "Direct repairman booking"
+        : row.service_name || row.service_id || "Service booking";
+    return `Booking ${row.id} • ${label}`;
+  }
   if (collection === "payments") return row.transaction_id || row.booking_id || row.id;
   if (collection === "reviews") return `Booking ${row.booking_id || "-"}`;
   if (collection === "accounts") return row.username || row.email || row.id;
@@ -127,8 +164,14 @@ const getPrimaryText = (collection, row) => {
 const getSecondaryText = (collection, row) => {
   if (collection === "users" || collection === "repairmen") return row.phone || row.address || "No details";
   if (collection === "services") return row.description || "No description";
-  if (collection === "bookings")
-    return `Service: ${row.service_id || "-"} | Repairman: ${row.repairman_id || "-"}`;
+  if (collection === "bookings") {
+    const isDirectBooking = row.booking_type === "direct_repairman";
+    const bookingLabel = isDirectBooking
+      ? row.specialty || row.booking_mode || "Direct repairman booking"
+      : row.service_name || row.service_id || "-";
+    const repairmanLabel = row.repairman_name || row.repairman_id || "-";
+    return `${isDirectBooking ? "Booking" : "Service"}: ${bookingLabel} | Repairman: ${repairmanLabel}`;
+  }
   if (collection === "payments") return row.payment_method || "Unknown";
   if (collection === "reviews") return row.comment || "No comment";
   if (collection === "accounts") return row.email || row.role || "No details";
@@ -164,7 +207,7 @@ const buildActivityRows = (collection, docs) =>
           : collection === "bookings"
           ? toAmount(row.total_amount)
           : undefined,
-    }));
+      }));
 
 exports.getDashboardSummary = async (req, res) => {
   try {
@@ -227,7 +270,10 @@ exports.getRecentActivity = async (req, res) => {
     const { tab = "dashboard" } = req.query;
     const collection = resolveCollection(tab) || "bookings";
     const snap = await db.collection(collection).get();
-    const docs = snap.docs.map((doc) => ({ id: doc.id, ...serialize(doc.data()) }));
+    let docs = snap.docs.map((doc) => ({ id: doc.id, ...serialize(doc.data()) }));
+    if (collection === "bookings") {
+      docs = await Promise.all(docs.map((row) => enrichBooking(row)));
+    }
     const items = buildActivityRows(collection, docs);
     return res.json({ tab, items });
   } catch (error) {
@@ -245,6 +291,9 @@ exports.getEntities = async (req, res) => {
 
     const snap = await db.collection(collection).get();
     let items = snap.docs.map((doc) => ({ id: doc.id, ...serialize(doc.data()) }));
+    if (collection === "bookings") {
+      items = await Promise.all(items.map((row) => enrichBooking(row)));
+    }
 
     const needle = String(q).trim().toLowerCase();
     if (needle) {

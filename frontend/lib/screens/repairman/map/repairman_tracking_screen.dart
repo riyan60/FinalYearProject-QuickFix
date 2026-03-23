@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:latlong2/latlong.dart' as latlong;
-import '../../../models/booking_model.dart';
+
 import '../../../core/utils/location_utils.dart';
+import '../../../models/booking_model.dart';
 
 class RepairmanTrackingScreen extends StatefulWidget {
   final Booking booking;
@@ -17,17 +20,22 @@ class RepairmanTrackingScreen extends StatefulWidget {
 }
 
 class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
+  GoogleMapController? _mapController;
   latlong.LatLng? _userLocation;
   latlong.LatLng? _repairmanLocation;
   Timer? _pollTimer;
-  String _statusText = 'Loading locations...';
+  bool _isLoading = true;
+  String _statusText = 'Loading user location...';
 
   @override
   void initState() {
     super.initState();
     _initUserLocation();
-    _getCurrentRepairmanLocation();
-    _startPolling();
+    _refreshLocations();
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _refreshLocations(),
+    );
   }
 
   @override
@@ -43,45 +51,84 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
         widget.booking.userLatitude!,
         widget.booking.userLongitude!,
       );
+    } else {
+      _statusText = 'User location is not available for this booking.';
+      _isLoading = false;
     }
   }
 
-  Future<void> _getCurrentRepairmanLocation() async {
+  Future<void> _refreshLocations() async {
+    if (_userLocation == null) return;
+
     try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
         ),
       );
-      _repairmanLocation = latlong.LatLng(
+
+      final currentRepairmanLocation = latlong.LatLng(
         position.latitude,
         position.longitude,
       );
-    } catch (e) {
-      // Fallback or handle error
+      final distanceKm = calculateDistance(
+        currentRepairmanLocation,
+        _userLocation!,
+      );
+      final etaMinutes = calculateETA(currentRepairmanLocation, _userLocation!);
+
+      if (!mounted) return;
+      setState(() {
+        _repairmanLocation = currentRepairmanLocation;
+        _isLoading = false;
+        _statusText =
+            '${distanceKm.toStringAsFixed(1)} km to user, ETA $etaMinutes min';
+      });
+
+      _fitCameraToPoints();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _statusText =
+            'Unable to calculate live distance. Check location permission.';
+      });
     }
   }
 
-  void _startPolling() {
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      _updateStatus();
-    });
-    _updateStatus();
-  }
+  void _fitCameraToPoints() {
+    if (_mapController == null ||
+        _userLocation == null ||
+        _repairmanLocation == null) {
+      return;
+    }
 
-  Future<void> _updateStatus() async {
-    if (_userLocation == null || _repairmanLocation == null) return;
+    final southWestLat =
+        math.min(_userLocation!.latitude, _repairmanLocation!.latitude) - 0.01;
+    final southWestLng =
+        math.min(_userLocation!.longitude, _repairmanLocation!.longitude) -
+        0.01;
+    final northEastLat =
+        math.max(_userLocation!.latitude, _repairmanLocation!.latitude) + 0.01;
+    final northEastLng =
+        math.max(_userLocation!.longitude, _repairmanLocation!.longitude) +
+        0.01;
 
-    final distance = calculateDistance(_repairmanLocation!, _userLocation!);
-    final eta = calculateETA(_repairmanLocation!, _userLocation!);
+    final bounds = LatLngBounds(
+      southwest: LatLng(southWestLat, southWestLng),
+      northeast: LatLng(northEastLat, northEastLng),
+    );
 
-    setState(() {
-      _statusText = '${distance.toStringAsFixed(1)} km to user, ETA $eta min';
-    });
+    _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
   }
 
   @override
   Widget build(BuildContext context) {
+    final initialTarget = LatLng(
+      _userLocation?.latitude ?? 20.5937,
+      _userLocation?.longitude ?? 78.9629,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Track User Location'),
@@ -93,10 +140,14 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
       body: Stack(
         children: [
           GoogleMap(
-            initialCameraPosition: const CameraPosition(
-              target: LatLng(20.5937, 78.9629),
+            initialCameraPosition: CameraPosition(
+              target: initialTarget,
               zoom: 14,
             ),
+            onMapCreated: (controller) {
+              _mapController = controller;
+              _fitCameraToPoints();
+            },
             markers: {
               if (_userLocation != null)
                 Marker(
@@ -141,7 +192,11 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.directions, size: 32, color: Colors.blue),
+                    Icon(
+                      _isLoading ? Icons.hourglass_empty : Icons.directions,
+                      size: 32,
+                      color: Colors.blue,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       widget.booking.status.toUpperCase(),
@@ -151,7 +206,7 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(_statusText),
+                    Text(_statusText, textAlign: TextAlign.center),
                   ],
                 ),
               ),
