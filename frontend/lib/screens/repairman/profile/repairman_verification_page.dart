@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/validators.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/repairman/repairman_service.dart';
 
@@ -362,7 +363,12 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
                               ? 'ID number is required'
                               : null,
                         ),
-                        _buildTextField('Phone', _phoneController),
+                        _buildTextField(
+                          'Phone',
+                          _phoneController,
+                          keyboardType: TextInputType.phone,
+                          validator: Validators.validatePhone,
+                        ),
                         _buildTextField('Address', _addressController, maxLines: 2),
                         _buildTextField('City', _cityController),
                         _buildTextField('Specialization', _specializationController),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../services/payment_service.dart';
+
 class PaymentOptionsPage extends StatefulWidget {
   const PaymentOptionsPage({super.key});
 
@@ -9,6 +11,15 @@ class PaymentOptionsPage extends StatefulWidget {
 
 class _PaymentOptionsPageState extends State<PaymentOptionsPage> {
   String _selectedMethod = 'Cash on Service';
+  final PaymentService _paymentService = PaymentService();
+  bool _isPaying = false;
+  String? _lastPaymentId;
+
+  @override
+  void dispose() {
+    _paymentService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +70,65 @@ class _PaymentOptionsPageState extends State<PaymentOptionsPage> {
             const SizedBox(height: 10),
             _buildPaymentMethods(),
             const SizedBox(height: 30),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isPaying
+                    ? null
+                    : () async {
+                        setState(() {
+                          _isPaying = true;
+                        });
+                        try {
+                          final paymentId = await _paymentService.startPayment(
+                            amountInPaise: 100,
+                          );
+                          if (!mounted) return;
+                          setState(() {
+                            _selectedMethod = 'Razorpay';
+                            _lastPaymentId = paymentId;
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Payment successful. payment_id: $paymentId',
+                              ),
+                            ),
+                          );
+                        } catch (error) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('$error')));
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              _isPaying = false;
+                            });
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                ),
+                child: Text(
+                  _isPaying ? 'Processing...' : 'Pay Now (Rs 1 Test)',
+                  style: const TextStyle(fontSize: 18, color: Colors.white),
+                ),
+              ),
+            ),
+            if (_lastPaymentId != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Last payment_id: $_lastPaymentId',
+                style: const TextStyle(color: Colors.green),
+              ),
+            ],
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               height: 50,

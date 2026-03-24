@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'login_page.dart';
 import '../location/location_picker_screen.dart';
+import '../../core/utils/validators.dart';
 import '../../services/api_service.dart';
 import '../../services/city_service.dart';
 
@@ -120,9 +121,15 @@ class _SignupUserState extends State<SignupUser> {
     }
 
     // Email validation
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegex.hasMatch(_emailController.text.trim())) {
-      _showError("Please enter a valid email address");
+    final emailError = Validators.validateEmail(_emailController.text);
+    if (emailError != null) {
+      _showError(emailError);
+      return;
+    }
+
+    final phoneError = Validators.validatePhone(_phoneController.text);
+    if (phoneError != null) {
+      _showError(phoneError);
       return;
     }
 
@@ -312,6 +319,7 @@ class _SignupUserState extends State<SignupUser> {
               Icons.phone_outlined,
               "Phone No",
               controller: _phoneController,
+              keyboardType: TextInputType.phone,
             ),
             _buildSignupField(
               Icons.lock_outline,

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart' as latlng;
 
+import '../../../core/utils/location_utils.dart';
 import '../../../core/utils/money_utils.dart';
 import '../../../services/booking_service.dart';
+import '../../../services/payment_service.dart';
 import '../../../services/wallet_service.dart';
 import 'booking_success_page.dart';
 
@@ -14,6 +16,7 @@ class HourlyRepairmanBookingPage extends StatefulWidget {
   final String specialty;
   final double hourlyRate;
   final latlng.LatLng? userLocation;
+  final latlng.LatLng? repairmanLocation;
 
   const HourlyRepairmanBookingPage({
     super.key,
@@ -22,6 +25,7 @@ class HourlyRepairmanBookingPage extends StatefulWidget {
     required this.specialty,
     required this.hourlyRate,
     this.userLocation,
+    this.repairmanLocation,
   });
 
   @override
@@ -33,6 +37,7 @@ class _HourlyRepairmanBookingPageState
     extends State<HourlyRepairmanBookingPage> {
   final BookingService _bookingService = BookingService();
   final WalletService _walletService = WalletService();
+  final PaymentService _paymentService = PaymentService();
 
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
@@ -42,9 +47,25 @@ class _HourlyRepairmanBookingPageState
   bool _isSubmitting = false;
   double _walletBalance = 0;
 
-  double get _totalAmount => _bookingMode == _HourlyBookingMode.byHours
+  double get _serviceAmount => _bookingMode == _HourlyBookingMode.byHours
       ? widget.hourlyRate * _hours
       : widget.hourlyRate;
+
+  double get _platformFee => 9;
+
+  double get _travelDistanceKm {
+    if (widget.userLocation == null || widget.repairmanLocation == null) {
+      return 0;
+    }
+    return calculateDistance(widget.userLocation!, widget.repairmanLocation!);
+  }
+
+  double get _travelCharge {
+    if (_travelDistanceKm <= 2) return 0;
+    return double.parse((_travelDistanceKm * 10).toStringAsFixed(2));
+  }
+
+  double get _totalAmount => _serviceAmount + _platformFee + _travelCharge;
 
   @override
   void initState() {
@@ -58,6 +79,12 @@ class _HourlyRepairmanBookingPageState
     setState(() {
       _walletBalance = balance;
     });
+  }
+
+  @override
+  void dispose() {
+    _paymentService.dispose();
+    super.dispose();
   }
 
   Future<void> _pickDate() async {
@@ -124,6 +151,13 @@ class _HourlyRepairmanBookingPageState
     });
 
     try {
+      String? razorpayPaymentId;
+      if (!_useWallet) {
+        razorpayPaymentId = await _paymentService.startPayment(
+          amountInPaise: (_totalAmount * 100).round(),
+        );
+      }
+
       await _bookingService.createBookingWithLocation(
         serviceId: _bookingMode == _HourlyBookingMode.byHours
             ? 'Hourly booking (${_hours} hr) - ${widget.specialty}'
@@ -136,7 +170,7 @@ class _HourlyRepairmanBookingPageState
         ).toIso8601String(),
         scheduledTime: _formatTime(_selectedTime),
         totalAmount: _totalAmount,
-        paymentMethod: _useWallet ? 'QuickFix Wallet' : 'Cash on Service',
+        paymentMethod: _useWallet ? 'QuickFix Wallet' : 'Razorpay',
         paidFromWallet: _useWallet,
         bookingType: 'direct_repairman',
         bookingMode: _bookingMode == _HourlyBookingMode.byHours
@@ -152,11 +186,20 @@ class _HourlyRepairmanBookingPageState
               ? 'by_hours'
               : 'pay_as_you_go',
           'hourly_rate': widget.hourlyRate,
+          'service_amount': _serviceAmount,
+          'platform_fee': _platformFee,
+          'travel_charge': _travelCharge,
+          'travel_distance_km': _travelDistanceKm,
           'booked_hours': _bookingMode == _HourlyBookingMode.byHours
               ? _hours
               : 0,
           'repairman_name': widget.repairmanName,
           'specialty': widget.specialty,
+          if (!_useWallet && razorpayPaymentId != null) ...{
+            'payment_gateway': 'razorpay',
+            'payment_id': razorpayPaymentId,
+            'payment_status': 'paid',
+          },
         },
         userLatitude: widget.userLocation?.latitude,
         userLongitude: widget.userLocation?.longitude,
@@ -245,6 +288,48 @@ class _HourlyRepairmanBookingPageState
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF2E6BE6),
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Charges',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                _chargeRow(
+                  _bookingMode == _HourlyBookingMode.byHours
+                      ? 'Service amount ($_hours hr)'
+                      : 'Service amount',
+                  MoneyUtils.format(_serviceAmount),
+                ),
+                const SizedBox(height: 10),
+                _chargeRow('Platform fee', MoneyUtils.format(_platformFee)),
+                if (_travelCharge > 0) ...[
+                  const SizedBox(height: 10),
+                  _chargeRow(
+                    'Travel fee (${_travelDistanceKm.toStringAsFixed(1)} km)',
+                    MoneyUtils.format(_travelCharge),
+                  ),
+                ],
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(height: 1),
+                ),
+                _chargeRow(
+                  'Total payable',
+                  MoneyUtils.format(_totalAmount),
+                  emphasize: true,
                 ),
               ],
             ),
@@ -407,7 +492,7 @@ class _HourlyRepairmanBookingPageState
                   subtitle: Text(
                     _useWallet
                         ? 'Amount will be deducted from your wallet.'
-                        : 'Booking will be created without wallet deduction.',
+                        : 'You will pay online via Razorpay before booking is confirmed.',
                   ),
                   onChanged: _isSubmitting
                       ? null
@@ -430,15 +515,12 @@ class _HourlyRepairmanBookingPageState
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Total Amount',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                const Text('Total Amount', style: TextStyle(fontSize: 16)),
                 Text(
                   MoneyUtils.format(_totalAmount),
                   style: const TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.bold,
                     color: Color(0xFF2E6BE6),
                   ),
                 ),
@@ -480,6 +562,30 @@ class _HourlyRepairmanBookingPageState
           ],
         ),
       ),
+    );
+  }
+
+  Widget _chargeRow(String label, String value, {bool emphasize = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: emphasize ? 16 : 14,
+            fontWeight: emphasize ? FontWeight.bold : FontWeight.normal,
+            color: const Color(0xFF0F172A),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: emphasize ? 18 : 14,
+            fontWeight: emphasize ? FontWeight.bold : FontWeight.normal,
+            color: emphasize ? const Color(0xFF2E6BE6) : const Color(0xFF0F172A),
+          ),
+        ),
+      ],
     );
   }
 }

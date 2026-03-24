@@ -264,6 +264,14 @@ class RepairmanProfilePage extends StatelessWidget {
                               specialty: specialization,
                               hourlyRate: hourlyRateValue,
                               userLocation: userLocation,
+                              repairmanLocation:
+                                  repairmanLatitude != null &&
+                                      repairmanLongitude != null
+                                  ? latlong.LatLng(
+                                      repairmanLatitude,
+                                      repairmanLongitude,
+                                    )
+                                  : null,
                             ),
                           ),
                         );

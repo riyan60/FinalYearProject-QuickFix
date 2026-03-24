@@ -34,6 +34,59 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
   late final Future<List<Service>> _servicesFuture = _serviceCatalogService
       .getServicesByCategory(widget.categoryTitle);
 
+  Future<void> _handleAddToCart(
+    BuildContext context,
+    CartProvider cartProvider,
+    Service service,
+  ) async {
+    if (!cartProvider.hasCategoryConflict(service)) {
+      cartProvider.addService(service);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${service.name} added to cart')),
+      );
+      return;
+    }
+
+    final existingCategory = cartProvider.primaryCategory ?? 'another category';
+    final shouldReplace = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Replace cart items?'),
+        content: Text(
+          'Your cart already has $existingCategory services. Replace them with ${service.category} service?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep current'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldReplace != true || !mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only book one service category at a time.'),
+        ),
+      );
+      return;
+    }
+
+    cartProvider.replaceCartWith(service);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Cart updated with ${service.name}. Previous category items were removed.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -298,12 +351,7 @@ class _DynamicServiceListScreenState extends State<DynamicServiceListScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  cartProvider.addService(service);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${service.name} added to cart')),
-                  );
-                },
+                onTap: () => _handleAddToCart(context, cartProvider, service),
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(

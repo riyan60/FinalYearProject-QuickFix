@@ -27,6 +27,7 @@ class LocationPickerScreen extends StatefulWidget {
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
   GoogleMapController? _mapController;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   List<_SearchResult> _searchResults = [];
   bool _isSearching = false;
   bool _isFetchingLocation = false;
@@ -39,6 +40,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   LatLng? _selectedLocation;
   LatLng? _currentLocation;
   StreamSubscription<Position>? _positionStream;
+  Timer? _searchDebounce;
 
   bool get _googleMapsSupported {
     if (kIsWeb) return true;
@@ -49,6 +51,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   void initState() {
     super.initState();
+    _searchFocusNode.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     final session = AuthService.currentSession ?? const <String, dynamic>{};
     final sessionLatitude = double.tryParse('${session['latitude'] ?? ''}');
     final sessionLongitude = double.tryParse('${session['longitude'] ?? ''}');
@@ -76,9 +83,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _positionStream?.cancel();
     _mapController?.dispose();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -234,6 +243,30 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     }
   }
 
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    final query = value.trim();
+
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _searchError = '';
+      });
+      return;
+    }
+
+    _searchDebounce = Timer(const Duration(milliseconds: 450), _searchPlaces);
+  }
+
+  void _clearSearch() {
+    _searchDebounce?.cancel();
+    setState(() {
+      _searchController.clear();
+      _searchResults = [];
+      _searchError = '';
+    });
+  }
+
   Future<void> _moveTo(LatLng point) async {
     await _mapController?.animateCamera(
       CameraUpdate.newCameraPosition(CameraPosition(target: point, zoom: 15)),
@@ -251,7 +284,198 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       _searchError = '';
       _searchController.text = result.displayName;
     });
+    _searchFocusNode.unfocus();
     _moveTo(point);
+  }
+
+  Widget _buildSearchBar() {
+    return Material(
+      elevation: 6,
+      borderRadius: BorderRadius.circular(18),
+      color: Colors.white,
+      shadowColor: Colors.black.withAlpha(28),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: _searchFocusNode.hasFocus
+                ? const Color(0xFF2E6BE6)
+                : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.search_rounded, color: Color(0xFF2E6BE6)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                textInputAction: TextInputAction.search,
+                onChanged: _onSearchChanged,
+                onSubmitted: (_) => _searchPlaces(),
+                decoration: const InputDecoration(
+                  hintText: 'Search by place, area, or address',
+                  hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
+                  isDense: true,
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+            if (_searchController.text.trim().isNotEmpty && !_isSearching)
+              IconButton(
+                tooltip: 'Clear search',
+                onPressed: _clearSearch,
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Color(0xFF6B7280),
+                ),
+              )
+            else if (_isSearching)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10),
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                ),
+              )
+            else
+              IconButton(
+                tooltip: 'Search',
+                onPressed: _searchPlaces,
+                icon: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchResultsCard() {
+    final hasQuery = _searchController.text.trim().isNotEmpty;
+    final shouldShowCard =
+        _searchError.isNotEmpty ||
+        _searchResults.isNotEmpty ||
+        (hasQuery && (_isSearching || _searchResults.isEmpty));
+
+    if (!shouldShowCard) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 10),
+      constraints: const BoxConstraints(maxHeight: 240),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(18),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_searchError.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                color: Colors.red.shade50,
+                child: Text(
+                  _searchError,
+                  style: TextStyle(color: Colors.red.shade700),
+                ),
+              )
+            else if (_isSearching)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Searching locations...',
+                        style: TextStyle(color: Color(0xFF6B7280)),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_searchResults.isEmpty && hasQuery)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.location_searching, color: Color(0xFF6B7280)),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'No places found. Try a broader keyword.',
+                        style: TextStyle(color: Color(0xFF6B7280)),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _searchResults.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1, indent: 14, endIndent: 14),
+                  itemBuilder: (context, index) {
+                    final result = _searchResults[index];
+                    return ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 2,
+                      ),
+                      leading: const Icon(
+                        Icons.place_outlined,
+                        color: Color(0xFF2E6BE6),
+                      ),
+                      title: Text(
+                        result.primaryText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: result.secondaryText.isEmpty
+                          ? null
+                          : Text(
+                              result.secondaryText,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                      onTap: () => _selectSearchResult(result),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -351,86 +575,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
           right: 12,
           child: Column(
             children: [
-              Material(
-                elevation: 2,
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: (_) => _searchPlaces(),
-                          decoration: const InputDecoration(
-                            hintText: 'Search place or address',
-                            isDense: true,
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _isSearching ? null : _searchPlaces,
-                        icon: _isSearching
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.search),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (_searchError.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _searchError,
-                    style: TextStyle(color: Colors.red.shade700),
-                  ),
-                ),
-              if (_searchResults.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(top: 8),
-                  constraints: const BoxConstraints(maxHeight: 220),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: ListView.separated(
-                    itemCount: _searchResults.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final result = _searchResults[index];
-                      return ListTile(
-                        dense: true,
-                        title: Text(
-                          result.displayName,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () => _selectSearchResult(result),
-                      );
-                    },
-                  ),
-                ),
+              _buildSearchBar(),
+              _buildSearchResultsCard(),
               const SizedBox(height: 8),
               Material(
                 elevation: 2,
@@ -504,6 +650,19 @@ class _SearchResult {
     required this.latitude,
     required this.longitude,
   });
+
+  String get primaryText =>
+      displayName.split(',').firstWhere((part) => part.trim().isNotEmpty, orElse: () => displayName).trim();
+
+  String get secondaryText {
+    final parts = displayName
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length <= 1) return '';
+    return parts.skip(1).join(', ');
+  }
 
   static _SearchResult? fromJson(dynamic jsonValue) {
     if (jsonValue is! Map) return null;

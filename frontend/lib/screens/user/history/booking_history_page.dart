@@ -5,6 +5,7 @@ import '../../map/tracking_screen.dart';
 import '../../../core/utils/money_utils.dart';
 import '../../../models/booking_model.dart';
 import '../../../services/booking_service.dart';
+import '../../../services/review_service.dart';
 
 void main() => runApp(const MaterialApp(home: BookingHistoryPage()));
 
@@ -17,8 +18,11 @@ class BookingHistoryPage extends StatefulWidget {
 
 class _BookingHistoryPageState extends State<BookingHistoryPage> {
   final BookingService _bookingService = BookingService();
+  final ReviewService _reviewService = ReviewService();
   late Future<List<Booking>> _bookingsFuture;
   String? _respondingBookingId;
+  String? _reviewingBookingId;
+  final Set<String> _reviewedBookingIds = <String>{};
 
   @override
   void initState() {
@@ -64,6 +68,122 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
       if (mounted) {
         setState(() {
           _respondingBookingId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _openReviewSheet(Booking booking) async {
+    int selectedRating = 5;
+    final commentController = TextEditingController();
+
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Rate Repairman',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    booking.repairmanName.trim().isNotEmpty
+                        ? booking.repairmanName.trim()
+                        : 'Booking #${_shortBookingId(booking.id)}',
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    children: List.generate(5, (index) {
+                      final star = index + 1;
+                      return IconButton(
+                        onPressed: () {
+                          setModalState(() {
+                            selectedRating = star;
+                          });
+                        },
+                        icon: Icon(
+                          star <= selectedRating
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          color: const Color(0xFFFF9800),
+                          size: 32,
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: commentController,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Write a review',
+                      hintText: 'Share your experience with the repairman',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Submit Review'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    final comment = commentController.text.trim();
+    commentController.dispose();
+
+    if (submitted != true) return;
+
+    setState(() {
+      _reviewingBookingId = booking.id;
+    });
+
+    try {
+      await _reviewService.addReview(
+        bookingId: booking.id,
+        rating: selectedRating,
+        comment: comment,
+      );
+      if (!mounted) return;
+      setState(() {
+        _reviewedBookingIds.add(booking.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review submitted successfully.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _reviewingBookingId = null;
         });
       }
     }
@@ -202,6 +322,9 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
                     booking.userLongitude != null &&
                     !['pending', 'completed', 'cancelled']
                         .contains(status.toLowerCase());
+                final canReview =
+                    status.toLowerCase() == 'completed' &&
+                    !_reviewedBookingIds.contains(booking.id);
 
                 return BookingCard(
                   id: _shortBookingId(booking.id),
@@ -261,6 +384,11 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
                           );
                         }
                       : null,
+                  canReview: canReview,
+                  isReviewing: _reviewingBookingId == booking.id,
+                  onReview: canReview ? () => _openReviewSheet(booking) : null,
+                  reviewSubmitted:
+                      _reviewedBookingIds.contains(booking.id),
                 );
               },
             ),
@@ -288,6 +416,10 @@ class BookingCard extends StatelessWidget {
   final String? arrivalMessage;
   final VoidCallback? onOpenChat;
   final VoidCallback? onTrackRepairman;
+  final bool canReview;
+  final bool isReviewing;
+  final VoidCallback? onReview;
+  final bool reviewSubmitted;
 
   const BookingCard({
     super.key,
@@ -307,6 +439,10 @@ class BookingCard extends StatelessWidget {
     this.arrivalMessage,
     this.onOpenChat,
     this.onTrackRepairman,
+    this.canReview = false,
+    this.isReviewing = false,
+    this.onReview,
+    this.reviewSubmitted = false,
   });
 
   @override
@@ -417,6 +553,36 @@ class BookingCard extends StatelessWidget {
                     onPressed: onTrackRepairman,
                     icon: const Icon(Icons.location_on_outlined),
                     label: const Text('Track Repairman'),
+                  ),
+                if (canReview)
+                  TextButton.icon(
+                    onPressed: isReviewing ? null : onReview,
+                    icon: isReviewing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.star_outline_rounded),
+                    label: const Text('Rate Repairman'),
+                  ),
+                if (reviewSubmitted)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Text(
+                      'Review Submitted',
+                      style: TextStyle(
+                        color: Color(0xFF2E7D32),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
               ],
             ),

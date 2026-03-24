@@ -32,6 +32,7 @@ class _UserHomeState extends State<UserHome> {
   final ServiceCatalogService _serviceCatalogService = ServiceCatalogService();
   final RepairmanService _repairmanService = RepairmanService();
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   int _selectedIndex = 0;
   String _selectedLocationLabel = 'Choose your location';
@@ -43,6 +44,8 @@ class _UserHomeState extends State<UserHome> {
   _RepairmanFilterMode _repairmanFilterMode = _RepairmanFilterMode.all;
   String? _selectedSpecialtyFilter;
   final GlobalKey _locationMenuKey = GlobalKey();
+  final GlobalKey _servicesSectionKey = GlobalKey();
+  final GlobalKey _repairmenSectionKey = GlobalKey();
 
   late final Future<List<ServiceCategoryView>> _serviceCategoriesFuture =
       _loadServiceCategories();
@@ -297,7 +300,19 @@ class _UserHomeState extends State<UserHome> {
   void dispose() {
     _searchController.removeListener(_handleSearchChanged);
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _scrollToSection(GlobalKey key) async {
+    final targetContext = key.currentContext;
+    if (targetContext == null) return;
+    await Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      alignment: 0.06,
+    );
   }
 
   String get _searchQuery => _searchController.text.trim().toLowerCase();
@@ -832,14 +847,13 @@ class _UserHomeState extends State<UserHome> {
       backgroundColor: const Color(0xFFF4F7FB),
       body: SafeArea(
         child: SingleChildScrollView(
+          controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeroCard(),
               const SizedBox(height: 18),
-              _buildEmergencyBookingCard(),
-              const SizedBox(height: 20),
               TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
@@ -879,9 +893,16 @@ class _UserHomeState extends State<UserHome> {
                 ),
               ),
               const SizedBox(height: 24),
-              const SectionHeader(
-                title: 'Popular Services',
-                subtitle: 'Pick a category and book in minutes',
+              _buildEmergencyBookingCard(),
+              const SizedBox(height: 24),
+              _buildBookingShortcuts(),
+              const SizedBox(height: 24),
+              Container(
+                key: _servicesSectionKey,
+                child: const SectionHeader(
+                  title: 'Popular Services',
+                  subtitle: 'Pick a category and book in minutes',
+                ),
               ),
               const SizedBox(height: 14),
               FutureBuilder<List<ServiceCategoryView>>(
@@ -922,15 +943,18 @@ class _UserHomeState extends State<UserHome> {
                 },
               ),
               const SizedBox(height: 24),
-              SectionHeader(
-                title: 'Nearby Repairmans',
-                subtitle: _repairmanFilterMode == _RepairmanFilterMode.all
-                    ? 'Trusted professionals available around your area'
-                    : _repairmanFilterMode == _RepairmanFilterMode.location
-                    ? 'Repairmen filtered by your selected location'
-                    : _repairmanFilterMode == _RepairmanFilterMode.specialty
-                    ? 'Repairmen listed by rating for ${_selectedSpecialtyFilter ?? 'the selected specialty'}'
-                    : 'Top-rated repairmen across 6 specialties',
+              Container(
+                key: _repairmenSectionKey,
+                child: SectionHeader(
+                  title: 'Nearby Repairmans',
+                  subtitle: _repairmanFilterMode == _RepairmanFilterMode.all
+                      ? 'Trusted professionals available around your area'
+                      : _repairmanFilterMode == _RepairmanFilterMode.location
+                      ? 'Repairmen filtered by your selected location'
+                      : _repairmanFilterMode == _RepairmanFilterMode.specialty
+                      ? 'Repairmen listed by rating for ${_selectedSpecialtyFilter ?? 'the selected specialty'}'
+                      : 'Top-rated repairmen across 6 specialties',
+                ),
               ),
               const SizedBox(height: 14),
               FutureBuilder<List<dynamic>>(
@@ -1216,6 +1240,100 @@ class _UserHomeState extends State<UserHome> {
             child: const Text('Open'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBookingShortcuts() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x110F172A),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _bookingShortcutCard(
+              icon: Icons.home_repair_service_rounded,
+              title: 'Book a Service',
+              subtitle: 'Choose services and add them to cart.',
+              accentColor: const Color(0xFF1F6FEB),
+              onTap: () => _scrollToSection(_servicesSectionKey),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _bookingShortcutCard(
+              icon: Icons.schedule_rounded,
+              title: 'Book by Hour',
+              subtitle: 'Pick a repairman for hourly work.',
+              accentColor: const Color(0xFFE05A2A),
+              onTap: () => _scrollToSection(_repairmenSectionKey),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bookingShortcutCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color accentColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: accentColor.withAlpha(10),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accentColor.withAlpha(36)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accentColor.withAlpha(24),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: accentColor),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: Color(0xFF6B7280),
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -9,4 +9,10 @@ class ApiConstants {
   static const String servicesEndpoint = '/api/services';
   static const String bookingsEndpoint = '/api/bookings';
   static const String usersEndpoint = '/api/auth';
+  static const String createOrderEndpoint = '/api/payments/create-order';
+  static const String verifyPaymentEndpoint = '/api/payments/verify-payment';
+  static const String razorpayKeyId = String.fromEnvironment(
+    'RAZORPAY_KEY_ID',
+    defaultValue: 'rzp_test_SSc35Br3QPENtd',
+  );
 }

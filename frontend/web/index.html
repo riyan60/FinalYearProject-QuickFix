@@ -29,7 +29,23 @@
 
   <title>quickfix_app</title>
   <link rel="manifest" href="manifest.json">
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyATCzXAcqtm5IFqfKmZGnUGjpdbGJ4840U"></script>
+  <script src="env.js"></script>
+  <script>
+    (function loadGoogleMapsScript() {
+      const mapsApiKey = window.APP_CONFIG?.GOOGLE_MAPS_API_KEY;
+      if (!mapsApiKey) {
+        console.warn("Google Maps API key is not configured for web.");
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src =
+        "https://maps.googleapis.com/maps/api/js?key=" +
+        encodeURIComponent(mapsApiKey);
+      script.async = false;
+      document.head.appendChild(script);
+    })();
+  </script>
   
   
   <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
