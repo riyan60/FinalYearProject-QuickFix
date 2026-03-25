@@ -116,12 +116,14 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
       if (status == 'booking_confirmed') return 'reached_destination';
       if (status == 'reached_destination') return 'completed';
       if (status == 'arrival_confirmed') return 'completed';
+      if (status == 'completion_pending_repairman') return 'completed';
       return null;
     }
 
     if (status == 'pending') return 'accepted';
     if (status == 'accepted') return 'in_progress';
     if (status == 'in_progress') return 'completed';
+    if (status == 'completion_pending_repairman') return 'completed';
     return null;
   }
 
@@ -132,11 +134,15 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
       if (status == 'booking_confirmed') return 'Reached';
       if (status == 'arrival_confirmed') return 'Complete';
       if (status == 'reached_destination') return 'Complete';
+      if (status == 'completion_pending_user') return 'Waiting for User';
+      if (status == 'completion_pending_repairman') return 'Confirm Completion';
       return 'Done';
     }
 
     if (status == 'pending') return 'Accept';
     if (status == 'accepted') return 'Start';
+    if (status == 'completion_pending_user') return 'Waiting for User';
+    if (status == 'completion_pending_repairman') return 'Confirm Completion';
     if (status == 'in_progress') return 'Complete';
     return 'Done';
   }
@@ -158,6 +164,10 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
         ),
       );
     }
+  }
+
+  Future<void> _rejectJob(String bookingId) async {
+    await _updateJobStatus(bookingId, 'rejected');
   }
 
   @override
@@ -282,6 +292,18 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
                                   'User confirmed arrival',
                                   style: TextStyle(color: Colors.green),
                                 ),
+                              if ((booking['repairman_completion_confirmed'] == true) &&
+                                  (booking['user_completion_confirmed'] != true))
+                                const Text(
+                                  'Completion confirmed by you. Waiting for user.',
+                                  style: TextStyle(color: Colors.orange),
+                                ),
+                              if ((booking['user_completion_confirmed'] == true) &&
+                                  (booking['repairman_completion_confirmed'] != true))
+                                const Text(
+                                  'User confirmed completion. Confirm from your side.',
+                                  style: TextStyle(color: Colors.blue),
+                                ),
                               const SizedBox(height: 12),
                               Row(
                                 children: [
@@ -300,24 +322,43 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
                                       child: const Text('View Details'),
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: _selectedStatus == 'completed'
-                                          ? null
-                                          : () {
-                                              final nextStatus =
-                                                  _nextStatus(booking);
-                                              if (nextStatus != null) {
-                                                _updateJobStatus(
-                                                  bookingId,
-                                                  nextStatus,
-                                                );
-                                              }
-                                            },
-                                      child: Text(_actionLabel(booking)),
+                                  if (_selectedStatus != 'completed') ...[
+                                    const SizedBox(width: 12),
+                                    if ((booking['status'] ?? '')
+                                            .toString()
+                                            .toLowerCase() ==
+                                        'pending') ...[
+                                      Expanded(
+                                        child: OutlinedButton(
+                                          onPressed: () => _rejectJob(bookingId),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.red,
+                                          ),
+                                          child: const Text('Reject'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                    ],
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed:
+                                            _actionLabel(booking) ==
+                                                    'Waiting for User'
+                                                ? null
+                                                : () {
+                                                    final nextStatus =
+                                                        _nextStatus(booking);
+                                                    if (nextStatus != null) {
+                                                      _updateJobStatus(
+                                                        bookingId,
+                                                        nextStatus,
+                                                      );
+                                                    }
+                                                  },
+                                        child: Text(_actionLabel(booking)),
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             ],

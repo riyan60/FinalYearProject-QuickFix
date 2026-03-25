@@ -7,6 +7,7 @@ import '../core/constants/api_constants.dart';
 
 class ApiService {
   static final String baseUrl = _resolveBaseUrl();
+  static Future<void> Function()? _unauthorizedHandler;
 
   static String _resolveBaseUrl() {
     const envBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
@@ -34,6 +35,10 @@ class ApiService {
     _authToken = token;
   }
 
+  static void setUnauthorizedHandler(Future<void> Function()? handler) {
+    _unauthorizedHandler = handler;
+  }
+
   // Get the auth token
   static String? get authToken => _authToken;
 
@@ -47,6 +52,10 @@ class ApiService {
     http.Response response,
     String fallbackMessage,
   ) {
+    if (_isUnauthorizedTokenResponse(response)) {
+      return Exception('Session expired. Please log in again.');
+    }
+
     try {
       final decoded = json.decode(response.body);
       if (decoded is Map<String, dynamic>) {
@@ -66,6 +75,33 @@ class ApiService {
         : body;
     final suffix = preview.isEmpty ? '' : ' | Response: $preview';
     return Exception('$fallbackMessage: ${response.statusCode}$suffix');
+  }
+
+  bool _isUnauthorizedTokenResponse(http.Response response) {
+    if (response.statusCode != 401) return false;
+
+    try {
+      final decoded = json.decode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final message = (decoded['message'] ?? decoded['error'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        return message.contains('invalid or expired token') ||
+            message.contains('no token provided') ||
+            message.contains('invalid authorization format');
+      }
+    } catch (_) {
+      // Fall back to status code handling below.
+    }
+
+    return true;
+  }
+
+  Future<void> _handleUnauthorizedIfNeeded(http.Response response) async {
+    if (_isUnauthorizedTokenResponse(response) && _unauthorizedHandler != null) {
+      await _unauthorizedHandler!.call();
+    }
   }
 
   Exception _buildNetworkException(
@@ -99,6 +135,7 @@ class ApiService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
+        await _handleUnauthorizedIfNeeded(response);
         throw _buildHttpException(
           response,
           'Failed to load data from $endpoint',
@@ -138,6 +175,7 @@ class ApiService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return json.decode(response.body);
       } else {
+        await _handleUnauthorizedIfNeeded(response);
         throw _buildHttpException(
           response,
           'Failed to post data to $endpoint',
@@ -161,6 +199,7 @@ class ApiService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         return json.decode(response.body);
       } else {
+        await _handleUnauthorizedIfNeeded(response);
         throw _buildHttpException(
           response,
           'Failed to update data at $endpoint',

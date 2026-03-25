@@ -47,6 +47,9 @@ class JobProvider extends ChangeNotifier {
         case 'completed':
           await _jobService.completeJob(bookingId);
           break;
+        case 'rejected':
+          await _jobService.rejectJob(bookingId);
+          break;
       }
       await loadJobs(status: _currentStatus);
     } catch (e) {

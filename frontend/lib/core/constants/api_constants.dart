@@ -1,9 +1,10 @@
 class ApiConstants {
-  static const String defaultWebBaseUrl = 'http://localhost:5000';
-  static const String defaultAndroidEmulatorBaseUrl = 'http://10.0.2.2:5000';
-  static const String defaultAndroidPhysicalDeviceBaseUrl =
-      'http://192.168.137.142:5000';
-  static const String defaultDesktopBaseUrl = 'http://localhost:5000';
+  static const String productionBaseUrl =
+      'https://quickfix-backend-f6tz.onrender.com';
+  static const String defaultWebBaseUrl = productionBaseUrl;
+  static const String defaultAndroidEmulatorBaseUrl = productionBaseUrl;
+  static const String defaultAndroidPhysicalDeviceBaseUrl = productionBaseUrl;
+  static const String defaultDesktopBaseUrl = productionBaseUrl;
   static const String loginEndpoint = '/api/auth/login';
   static const String signupEndpoint = '/api/auth/register';
   static const String servicesEndpoint = '/api/services';

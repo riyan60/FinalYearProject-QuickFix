@@ -9,6 +9,8 @@ class JobService {
     'booking_confirmed',
     'reached_destination',
     'arrival_confirmed',
+    'completion_pending_user',
+    'completion_pending_repairman',
   };
 
   Future<List<dynamic>> getJobRequests() async {
@@ -114,5 +116,11 @@ class JobService {
       }
       rethrow;
     }
+  }
+
+  Future<Map<String, dynamic>> rejectJob(String bookingId) async {
+    return await _apiService.put('/api/bookings/$bookingId/status', {
+      'status': 'rejected',
+    });
   }
 }

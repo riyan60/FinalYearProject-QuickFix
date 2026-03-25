@@ -1,6 +1,7 @@
 const { db } = require("../firebase");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const env = require("../config/env");
 
 // REGISTER
 exports.register = async (req, res) => {
@@ -163,7 +164,7 @@ exports.login = async (req, res) => {
 
     const token = jwt.sign(
       { userId: doc.id, role: acc.role },
-      process.env.JWT_SECRET,
+      env.jwtSecret(),
       { expiresIn: "7d" }
     );
 

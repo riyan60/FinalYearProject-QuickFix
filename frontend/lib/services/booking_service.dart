@@ -165,4 +165,10 @@ class BookingService {
       'status': confirmed ? 'reached_destination' : 'booking_confirmed',
     });
   }
+
+  Future<Map<String, dynamic>> confirmCompletion(String bookingId) async {
+    return await _apiService.put('/api/bookings/$bookingId/status', {
+      'completion_confirmed': true,
+    });
+  }
 }

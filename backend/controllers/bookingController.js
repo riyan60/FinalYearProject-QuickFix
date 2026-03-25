@@ -8,6 +8,47 @@ const normalizeCurrencyAmount = (value) => {
   return Number(Math.round(numeric).toFixed(2));
 };
 
+const applyCompletionState = (booking, update) => {
+  const bookingMode = String(booking.booking_mode || "").trim();
+  const hasDirectMetadata =
+    booking.hourly_rate !== undefined && booking.hourly_rate !== null ||
+    booking.booked_hours !== undefined && booking.booked_hours !== null ||
+    bookingMode.length > 0 ||
+    String(booking.specialty || "").trim().length > 0 ||
+    String(booking.repairman_name || "").trim().length > 0;
+  const isDirectRepairmanBooking =
+    booking.booking_type === "direct_repairman" || hasDirectMetadata;
+
+  const completedAt = new Date();
+  update.status = "completed";
+  update.completed_at = completedAt;
+
+  if (isDirectRepairmanBooking) {
+    const reachedAt = booking.reached_destination_at?.toDate
+      ? booking.reached_destination_at.toDate()
+      : booking.reached_destination_at
+      ? new Date(booking.reached_destination_at)
+      : booking.arrival_confirmed_at?.toDate
+      ? booking.arrival_confirmed_at.toDate()
+      : booking.arrival_confirmed_at
+      ? new Date(booking.arrival_confirmed_at)
+      : booking.confirmed_at?.toDate
+      ? booking.confirmed_at.toDate()
+      : booking.confirmed_at
+      ? new Date(booking.confirmed_at)
+      : null;
+    const durationMinutes = reachedAt
+      ? Math.max(1, Math.round((completedAt.getTime() - reachedAt.getTime()) / 60000))
+      : 0;
+    const hourlyRate = Number(booking.hourly_rate || 0);
+    const payableAmount = normalizeCurrencyAmount((durationMinutes / 60) * hourlyRate);
+
+    update.actual_duration_minutes = durationMinutes;
+    update.calculated_amount = payableAmount;
+    update.total_amount = payableAmount > 0 ? payableAmount : Number(booking.total_amount || 0);
+  }
+};
+
 const enrichBooking = async (booking) => {
   const enriched = { ...booking };
 
@@ -169,11 +210,15 @@ exports.getMyBookings = async (req, res) => {
 exports.updateBookingStatus = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const { status, arrival_confirmed } = req.body;
+    const { status, arrival_confirmed, completion_confirmed } = req.body;
     const { userId, role } = req.user;
     const hasArrivalConfirmation = Object.prototype.hasOwnProperty.call(
       req.body || {},
       "arrival_confirmed"
+    );
+    const hasCompletionConfirmation = Object.prototype.hasOwnProperty.call(
+      req.body || {},
+      "completion_confirmed"
     );
 
     const bDoc = await db.collection("bookings").doc(bookingId).get();
@@ -218,7 +263,74 @@ exports.updateBookingStatus = async (req, res) => {
       });
     }
 
+    if (hasCompletionConfirmation) {
+      const allowedStatuses = [
+        "in_progress",
+        "reached_destination",
+        "arrival_confirmed",
+        "completion_pending_user",
+        "completion_pending_repairman",
+      ];
+      if (!allowedStatuses.includes(String(booking.status || "").trim())) {
+        return res.status(400).json({ message: "Completion cannot be confirmed from current status" });
+      }
+      if (completion_confirmed !== true) {
+        return res.status(400).json({ message: "completion_confirmed must be true" });
+      }
+
+      const update = { updated_at: new Date() };
+      const userConfirmed =
+        role === "user" ? true : booking.user_completion_confirmed === true;
+      const repairmanConfirmed =
+        role === "repairman"
+          ? true
+          : booking.repairman_completion_confirmed === true;
+
+      if (role === "user") {
+        update.user_completion_confirmed = true;
+        update.user_completion_confirmed_at = new Date();
+      } else if (role === "repairman") {
+        update.repairman_completion_confirmed = true;
+        update.repairman_completion_confirmed_at = new Date();
+      } else {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      if (userConfirmed && repairmanConfirmed) {
+        applyCompletionState(booking, update);
+      } else {
+        update.status = role === "user"
+          ? "completion_pending_repairman"
+          : "completion_pending_user";
+      }
+
+      await db.collection("bookings").doc(bookingId).update(update);
+      return res.json({
+        message:
+          update.status === "completed"
+            ? "Booking completed"
+            : "Completion confirmed. Waiting for the other party.",
+        status: update.status,
+      });
+    }
+
     if (!status) return res.status(400).json({ message: "Status required" });
+
+    if (status === "rejected") {
+      if (role !== "repairman") {
+        return res.status(403).json({ message: "Only repairmen can reject bookings" });
+      }
+      if (booking.status !== "pending") {
+        return res.status(400).json({ message: "Only pending bookings can be rejected" });
+      }
+
+      update.status = "rejected";
+      update.rejected_at = new Date();
+      update.rejected_by = userId;
+
+      await db.collection("bookings").doc(bookingId).update(update);
+      return res.json({ message: "Booking rejected", status: "rejected" });
+    }
 
     update.status = status;
     if (status === "booking_confirmed") update.confirmed_at = new Date();
@@ -229,46 +341,41 @@ exports.updateBookingStatus = async (req, res) => {
       update.arrival_confirmed_at = new Date();
     }
     if (status === "completed") {
-      const bookingMode = String(booking.booking_mode || "").trim();
-      const hasDirectMetadata =
-        booking.hourly_rate !== undefined && booking.hourly_rate !== null ||
-        booking.booked_hours !== undefined && booking.booked_hours !== null ||
-        bookingMode.length > 0 ||
-        String(booking.specialty || "").trim().length > 0 ||
-        String(booking.repairman_name || "").trim().length > 0;
-      const isDirectRepairmanBooking =
-        booking.booking_type === "direct_repairman" ||
-        hasDirectMetadata;
+      const allowedStatuses = [
+        "in_progress",
+        "reached_destination",
+        "arrival_confirmed",
+        "completion_pending_user",
+        "completion_pending_repairman",
+      ];
+      if (!allowedStatuses.includes(String(booking.status || "").trim())) {
+        return res.status(400).json({ message: "Cannot complete booking from current status" });
+      }
+      if (role !== "repairman" && role !== "user") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      if (role === "repairman") {
+        update.repairman_completion_confirmed = true;
+        update.repairman_completion_confirmed_at = new Date();
+      }
+      if (role === "user") {
+        update.user_completion_confirmed = true;
+        update.user_completion_confirmed_at = new Date();
+      }
 
-      update.completed_at = new Date();
+      const userConfirmed =
+        role === "user" ? true : booking.user_completion_confirmed === true;
+      const repairmanConfirmed =
+        role === "repairman"
+          ? true
+          : booking.repairman_completion_confirmed === true;
 
-      if (isDirectRepairmanBooking) {
-        const reachedAt = booking.reached_destination_at?.toDate
-          ? booking.reached_destination_at.toDate()
-          : booking.reached_destination_at
-          ? new Date(booking.reached_destination_at)
-          : booking.arrival_confirmed_at?.toDate
-          ? booking.arrival_confirmed_at.toDate()
-          : booking.arrival_confirmed_at
-          ? new Date(booking.arrival_confirmed_at)
-          : booking.confirmed_at?.toDate
-          ? booking.confirmed_at.toDate()
-          : booking.confirmed_at
-          ? new Date(booking.confirmed_at)
-          : null;
-        const completedAt = new Date();
-        const durationMinutes = reachedAt
-          ? Math.max(1, Math.round((completedAt.getTime() - reachedAt.getTime()) / 60000))
-          : 0;
-        const hourlyRate = Number(booking.hourly_rate || 0);
-        const payableAmount = normalizeCurrencyAmount(
-          (durationMinutes / 60) * hourlyRate
-        );
-
-        update.completed_at = completedAt;
-        update.actual_duration_minutes = durationMinutes;
-        update.calculated_amount = payableAmount;
-        update.total_amount = payableAmount > 0 ? payableAmount : Number(booking.total_amount || 0);
+      if (userConfirmed && repairmanConfirmed) {
+        applyCompletionState(booking, update);
+      } else {
+        update.status = role === "user"
+          ? "completion_pending_repairman"
+          : "completion_pending_user";
       }
     }
 
@@ -307,12 +414,27 @@ exports.verifyOtpAndComplete = async (req, res) => {
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
-    await bRef.update({
-      status: "completed",
+    const update = {
       updated_at: new Date(),
-    });
+      repairman_completion_confirmed: true,
+      repairman_completion_confirmed_at: new Date(),
+    };
 
-    return res.json({ message: "OTP verified. Booking completed." });
+    if (booking.user_completion_confirmed === true) {
+      applyCompletionState(booking, update);
+    } else {
+      update.status = "completion_pending_user";
+    }
+
+    await bRef.update(update);
+
+    return res.json({
+      message:
+        update.status === "completed"
+          ? "OTP verified. Booking completed."
+          : "OTP verified. Waiting for user completion confirmation.",
+      status: update.status,
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

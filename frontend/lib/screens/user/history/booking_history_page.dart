@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../chat/chat_detail_page.dart';
 import '../../map/tracking_screen.dart';
+import '../../auth/login_page.dart';
 import '../../../core/utils/money_utils.dart';
 import '../../../models/booking_model.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/booking_service.dart';
 import '../../../services/review_service.dart';
 
@@ -21,8 +23,25 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
   final ReviewService _reviewService = ReviewService();
   late Future<List<Booking>> _bookingsFuture;
   String? _respondingBookingId;
+  String? _completingBookingId;
   String? _reviewingBookingId;
   final Set<String> _reviewedBookingIds = <String>{};
+
+  void _redirectToLoginIfNeeded(Object error) {
+    final message = error.toString().toLowerCase();
+    if (!message.contains('session expired')) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Session expired. Please log in again.')),
+      );
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    });
+  }
 
   @override
   void initState() {
@@ -31,6 +50,7 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
   }
 
   Future<void> _reloadBookings() async {
+    await AuthService().getCurrentProfile();
     final future = _bookingService.getMyBookings();
     if (mounted) {
       setState(() {
@@ -68,6 +88,35 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
       if (mounted) {
         setState(() {
           _respondingBookingId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmCompletion(String bookingId) async {
+    setState(() {
+      _completingBookingId = bookingId;
+    });
+
+    try {
+      await _bookingService.confirmCompletion(bookingId);
+      if (!mounted) return;
+      await _reloadBookings();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Completion confirmed. Thank you.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _completingBookingId = null;
         });
       }
     }
@@ -204,8 +253,12 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
       case 'in_progress':
       case 'booking_confirmed':
       case 'reached_destination':
+      case 'completion_pending_repairman':
         return Colors.blue;
+      case 'completion_pending_user':
+        return Colors.deepOrange;
       case 'cancelled':
+      case 'rejected':
         return Colors.red;
       case 'pending':
       default:
@@ -238,6 +291,219 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
     return MoneyUtils.format(amount);
   }
 
+  bool _isCompletedBooking(Booking booking) {
+    return booking.status.trim().toLowerCase() == 'completed';
+  }
+
+  bool _isEmergencyBooking(Booking booking) {
+    final emergencyRequest =
+        booking.extraData['emergency_request'] ??
+        booking.extraData['emergencyRequest'];
+    final emergencyPriority = (booking.extraData['emergency_priority'] ??
+            booking.extraData['emergencyPriority'] ??
+            '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    return emergencyRequest == true ||
+        emergencyPriority == 'emergency' ||
+        emergencyPriority == 'high';
+  }
+
+  int _compareByNearestBookingDate(Booking a, Booking b) {
+    final now = DateTime.now();
+    final aDiff = a.bookingDate.difference(now).inMilliseconds.abs();
+    final bDiff = b.bookingDate.difference(now).inMilliseconds.abs();
+    return aDiff.compareTo(bDiff);
+  }
+
+  List<Booking> _sortPendingBookings(List<Booking> bookings) {
+    final sorted = List<Booking>.from(bookings);
+    sorted.sort((a, b) {
+      final emergencyComparison = (_isEmergencyBooking(b) ? 1 : 0).compareTo(
+        _isEmergencyBooking(a) ? 1 : 0,
+      );
+      if (emergencyComparison != 0) return emergencyComparison;
+      return _compareByNearestBookingDate(a, b);
+    });
+    return sorted;
+  }
+
+  List<Booking> _sortCompletedBookings(List<Booking> bookings) {
+    final sorted = List<Booking>.from(bookings);
+    sorted.sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
+    return sorted;
+  }
+
+  Widget _buildSectionHeader(String title, int count) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE9EEF9),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF3559A8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptySectionMessage(String message) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE7ECF5)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(color: Colors.black54),
+      ),
+    );
+  }
+
+  Widget _buildBookingCard(Booking booking) {
+    final status = booking.status.isEmpty ? 'pending' : booking.status;
+    final isDirectBooking = booking.isDirectRepairmanBooking;
+    final directTitle = booking.specialty.trim().isNotEmpty
+        ? booking.specialty.trim()
+        : 'Direct Repairman Booking';
+    final directMode = booking.bookingMode.trim().isNotEmpty
+        ? _formatStatus(booking.bookingMode)
+        : 'Custom';
+    final serviceTitle = booking.serviceName.trim().isNotEmpty
+        ? booking.serviceName.trim()
+        : 'Service Booking';
+    final providerLabel = booking.repairmanName.trim().isNotEmpty
+        ? booking.repairmanName.trim()
+        : booking.repairmanId;
+    final showArrivalActions =
+        isDirectBooking &&
+        status == 'reached_destination' &&
+        booking.arrivalConfirmedByUser != true;
+    final arrivalMessage = booking.arrivalConfirmedByUser == true
+        ? 'Arrival confirmed by you'
+        : booking.arrivalConfirmedByUser == false
+        ? 'Arrival not confirmed yet'
+        : null;
+    final canTrackRepairman =
+        booking.repairmanId.trim().isNotEmpty &&
+        booking.userLatitude != null &&
+        booking.userLongitude != null &&
+        ![
+          'pending',
+          'completed',
+          'cancelled',
+          'rejected',
+          'completion_pending_user',
+          'completion_pending_repairman',
+        ].contains(
+          status.toLowerCase(),
+        );
+    final canReview =
+        status.toLowerCase() == 'completed' &&
+        !_reviewedBookingIds.contains(booking.id);
+    final canConfirmCompletion =
+        status.toLowerCase() == 'completion_pending_user' &&
+        !booking.userCompletionConfirmed;
+    final completionMessage = booking.userCompletionConfirmed
+        ? booking.repairmanCompletionConfirmed
+            ? 'Completion confirmed by both sides'
+            : 'You confirmed completion. Waiting for repairman.'
+        : booking.repairmanCompletionConfirmed
+        ? 'Repairman marked this job complete. Please confirm completion.'
+        : null;
+
+    return BookingCard(
+      id: _shortBookingId(booking.id),
+      title: isDirectBooking ? directTitle : serviceTitle,
+      subtitle: isDirectBooking
+          ? 'Mode: $directMode'
+          : booking.serviceId.isEmpty
+          ? 'Service details unavailable'
+          : 'Service ID: ${booking.serviceId}',
+      provider: providerLabel.isEmpty
+          ? 'Repairman assignment pending'
+          : isDirectBooking
+          ? 'Repairman: $providerLabel'
+          : 'Repairman ID: ${booking.repairmanId}',
+      date: _formatDate(booking.bookingDate),
+      time: booking.scheduledTime.isEmpty ? 'Not set' : booking.scheduledTime,
+      price: _formatAmount(booking.totalAmount),
+      status: _formatStatus(status),
+      statusColor: _statusColor(status),
+      showArrivalActions: showArrivalActions,
+      isResponding: _respondingBookingId == booking.id,
+      onArrivalConfirmed: showArrivalActions
+          ? () => _respondToArrival(booking.id, true)
+          : null,
+      onArrivalDenied: showArrivalActions
+          ? () => _respondToArrival(booking.id, false)
+          : null,
+      arrivalMessage: arrivalMessage,
+      completionMessage: completionMessage,
+      canConfirmCompletion: canConfirmCompletion,
+      isConfirmingCompletion: _completingBookingId == booking.id,
+      onConfirmCompletion: canConfirmCompletion
+          ? () => _confirmCompletion(booking.id)
+          : null,
+      isEmergency: _isEmergencyBooking(booking),
+      onOpenChat: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChatPage(
+              bookingId: booking.id,
+              title: providerLabel.isEmpty ? 'Booking Chat' : providerLabel,
+              subtitle: isDirectBooking ? directTitle : serviceTitle,
+            ),
+          ),
+        );
+      },
+      onTrackRepairman: canTrackRepairman
+          ? () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TrackingScreen(
+                    bookingId: booking.id,
+                    booking: booking,
+                  ),
+                ),
+              );
+            }
+          : null,
+      canReview: canReview,
+      isReviewing: _reviewingBookingId == booking.id,
+      onReview: canReview ? () => _openReviewSheet(booking) : null,
+      reviewSubmitted: _reviewedBookingIds.contains(booking.id),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -259,6 +525,7 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
           }
 
           if (snapshot.hasError) {
+            _redirectToLoginIfNeeded(snapshot.error!);
             return Center(
               child: Text(
                 snapshot.error.toString().replaceFirst('Exception: ', ''),
@@ -267,6 +534,12 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
           }
 
           final bookings = snapshot.data ?? [];
+          final pendingBookings = _sortPendingBookings(
+            bookings.where((booking) => !_isCompletedBooking(booking)).toList(),
+          );
+          final completedBookings = _sortCompletedBookings(
+            bookings.where(_isCompletedBooking).toList(),
+          );
           if (bookings.isEmpty) {
             return RefreshIndicator(
               onRefresh: _reloadBookings,
@@ -287,110 +560,22 @@ class _BookingHistoryPageState extends State<BookingHistoryPage> {
 
           return RefreshIndicator(
             onRefresh: _reloadBookings,
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              itemCount: bookings.length,
-              itemBuilder: (context, index) {
-                final booking = bookings[index];
-                final status =
-                    booking.status.isEmpty ? 'pending' : booking.status;
-                final isDirectBooking = booking.isDirectRepairmanBooking;
-                final directTitle = booking.specialty.trim().isNotEmpty
-                    ? booking.specialty.trim()
-                    : 'Direct Repairman Booking';
-                final directMode = booking.bookingMode.trim().isNotEmpty
-                    ? _formatStatus(booking.bookingMode)
-                    : 'Custom';
-                final serviceTitle = booking.serviceName.trim().isNotEmpty
-                    ? booking.serviceName.trim()
-                    : 'Service Booking';
-                final providerLabel = booking.repairmanName.trim().isNotEmpty
-                    ? booking.repairmanName.trim()
-                    : booking.repairmanId;
-                final showArrivalActions =
-                    isDirectBooking &&
-                    status == 'reached_destination' &&
-                    booking.arrivalConfirmedByUser != true;
-                final arrivalMessage = booking.arrivalConfirmedByUser == true
-                    ? 'Arrival confirmed by you'
-                    : booking.arrivalConfirmedByUser == false
-                    ? 'Arrival not confirmed yet'
-                    : null;
-                final canTrackRepairman =
-                    booking.repairmanId.trim().isNotEmpty &&
-                    booking.userLatitude != null &&
-                    booking.userLongitude != null &&
-                    !['pending', 'completed', 'cancelled']
-                        .contains(status.toLowerCase());
-                final canReview =
-                    status.toLowerCase() == 'completed' &&
-                    !_reviewedBookingIds.contains(booking.id);
-
-                return BookingCard(
-                  id: _shortBookingId(booking.id),
-                  title: isDirectBooking ? directTitle : serviceTitle,
-                  subtitle: isDirectBooking
-                      ? 'Mode: $directMode'
-                      : booking.serviceId.isEmpty
-                      ? 'Service details unavailable'
-                      : 'Service ID: ${booking.serviceId}',
-                  provider: providerLabel.isEmpty
-                      ? 'Repairman assignment pending'
-                      : isDirectBooking
-                      ? 'Repairman: $providerLabel'
-                      : 'Repairman ID: ${booking.repairmanId}',
-                  date: _formatDate(booking.bookingDate),
-                  time: booking.scheduledTime.isEmpty
-                      ? 'Not set'
-                      : booking.scheduledTime,
-                  price: _formatAmount(booking.totalAmount),
-                  status: _formatStatus(status),
-                  statusColor: _statusColor(status),
-                  showArrivalActions: showArrivalActions,
-                  isResponding: _respondingBookingId == booking.id,
-                  onArrivalConfirmed: showArrivalActions
-                      ? () => _respondToArrival(booking.id, true)
-                      : null,
-                  onArrivalDenied: showArrivalActions
-                      ? () => _respondToArrival(booking.id, false)
-                      : null,
-                  arrivalMessage: arrivalMessage,
-                  onOpenChat: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ChatPage(
-                          bookingId: booking.id,
-                          title: providerLabel.isEmpty
-                              ? 'Booking Chat'
-                              : providerLabel,
-                          subtitle: isDirectBooking
-                              ? directTitle
-                              : serviceTitle,
-                        ),
-                      ),
-                    );
-                  },
-                  onTrackRepairman: canTrackRepairman
-                      ? () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TrackingScreen(
-                                bookingId: booking.id,
-                                booking: booking,
-                              ),
-                            ),
-                          );
-                        }
-                      : null,
-                  canReview: canReview,
-                  isReviewing: _reviewingBookingId == booking.id,
-                  onReview: canReview ? () => _openReviewSheet(booking) : null,
-                  reviewSubmitted:
-                      _reviewedBookingIds.contains(booking.id),
-                );
-              },
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                _buildSectionHeader('Pending', pendingBookings.length),
+                if (pendingBookings.isEmpty)
+                  _buildEmptySectionMessage('No pending bookings right now.')
+                else
+                  ...pendingBookings.map(_buildBookingCard),
+                const SizedBox(height: 8),
+                _buildSectionHeader('Completed', completedBookings.length),
+                if (completedBookings.isEmpty)
+                  _buildEmptySectionMessage('No completed bookings yet.')
+                else
+                  ...completedBookings.map(_buildBookingCard),
+              ],
             ),
           );
         },
@@ -414,8 +599,13 @@ class BookingCard extends StatelessWidget {
   final VoidCallback? onArrivalConfirmed;
   final VoidCallback? onArrivalDenied;
   final String? arrivalMessage;
+  final String? completionMessage;
   final VoidCallback? onOpenChat;
   final VoidCallback? onTrackRepairman;
+  final bool isEmergency;
+  final bool canConfirmCompletion;
+  final bool isConfirmingCompletion;
+  final VoidCallback? onConfirmCompletion;
   final bool canReview;
   final bool isReviewing;
   final VoidCallback? onReview;
@@ -437,8 +627,13 @@ class BookingCard extends StatelessWidget {
     this.onArrivalConfirmed,
     this.onArrivalDenied,
     this.arrivalMessage,
+    this.completionMessage,
     this.onOpenChat,
     this.onTrackRepairman,
+    this.isEmergency = false,
+    this.canConfirmCompletion = false,
+    this.isConfirmingCompletion = false,
+    this.onConfirmCompletion,
     this.canReview = false,
     this.isReviewing = false,
     this.onReview,
@@ -497,6 +692,27 @@ class BookingCard extends StatelessWidget {
                       provider,
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
+                    if (isEmergency) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFECE8),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'Emergency',
+                          style: TextStyle(
+                            color: Color(0xFFD9481C),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -565,6 +781,19 @@ class BookingCard extends StatelessWidget {
                           )
                         : const Icon(Icons.star_outline_rounded),
                     label: const Text('Rate Repairman'),
+                  ),
+                if (canConfirmCompletion)
+                  TextButton.icon(
+                    onPressed:
+                        isConfirmingCompletion ? null : onConfirmCompletion,
+                    icon: isConfirmingCompletion
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.verified_outlined),
+                    label: const Text('Confirm Completion'),
                   ),
                 if (reviewSubmitted)
                   Container(
@@ -637,6 +866,24 @@ class BookingCard extends StatelessWidget {
                 arrivalMessage!,
                 style: const TextStyle(
                   color: Color(0xFF2E7D32),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+          if (completionMessage != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF4E5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                completionMessage!,
+                style: const TextStyle(
+                  color: Color(0xFF9A5B00),
                   fontWeight: FontWeight.w600,
                 ),
               ),

@@ -81,7 +81,7 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
 
   Future<void> _advanceStatus() async {
     final bookingId = (_booking['id'] ?? '').toString();
-    final currentStatus = (_booking['status'] ?? '').toString();
+    final currentStatus = (_booking['status'] ?? '').toString().toLowerCase();
 
     if (bookingId.isEmpty || currentStatus.isEmpty) {
       return;
@@ -101,7 +101,8 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
         } else if (currentStatus == 'booking_confirmed') {
           await _jobService.reachDestination(bookingId);
         } else if (currentStatus == 'reached_destination' ||
-            currentStatus == 'arrival_confirmed') {
+            currentStatus == 'arrival_confirmed' ||
+            currentStatus == 'completion_pending_repairman') {
           await _jobService.completeJob(bookingId);
         }
       } else {
@@ -109,11 +110,39 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
           await _jobService.acceptJob(bookingId);
         } else if (currentStatus == 'accepted') {
           await _jobService.startJob(bookingId);
-        } else if (currentStatus == 'in_progress') {
+        } else if (currentStatus == 'in_progress' ||
+            currentStatus == 'completion_pending_repairman') {
           await _jobService.completeJob(bookingId);
         }
       }
 
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _rejectJob() async {
+    final bookingId = (_booking['id'] ?? '').toString();
+    final currentStatus = (_booking['status'] ?? '').toString().toLowerCase();
+    if (bookingId.isEmpty || currentStatus != 'pending') return;
+
+    setState(() {
+      _isUpdating = true;
+    });
+
+    try {
+      await _jobService.rejectJob(bookingId);
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
@@ -138,11 +167,17 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
         return 'Complete & Calculate Pay';
       }
       if (status == 'reached_destination') return 'Complete & Calculate Pay';
+      if (status == 'completion_pending_user') return 'Waiting for User';
+      if (status == 'completion_pending_repairman') {
+        return 'Confirm Completion';
+      }
       return 'Done';
     }
 
     if (status == 'pending') return 'Accept Job';
     if (status == 'accepted') return 'Start Job';
+    if (status == 'completion_pending_user') return 'Waiting for User';
+    if (status == 'completion_pending_repairman') return 'Confirm Completion';
     return 'Complete Job';
   }
 
@@ -216,6 +251,18 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                       'User confirmed arrival',
                       style: TextStyle(color: Colors.green),
                     ),
+                  if (_booking['repairman_completion_confirmed'] == true &&
+                      _booking['user_completion_confirmed'] != true)
+                    const Text(
+                      'Completion confirmed by you. Waiting for user confirmation.',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                  if (_booking['user_completion_confirmed'] == true &&
+                      _booking['repairman_completion_confirmed'] != true)
+                    const Text(
+                      'User confirmed completion. Confirm from your side.',
+                      style: TextStyle(color: Colors.blue),
+                    ),
                   if ((_booking['issue_description'] ?? '').toString().trim().isNotEmpty)
                     Text(
                       'Issue: ${_booking['issue_description']}',
@@ -283,7 +330,9 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                       'booking_confirmed',
                       'reached_destination',
                       'arrival_confirmed',
+                      'completion_pending_repairman',
                     ].contains(status)
+                    || _buttonLabel(status) == 'Waiting for User'
                 ? null
                 : _advanceStatus,
             child: _isUpdating
@@ -294,6 +343,14 @@ class _JobDetailsScreenState extends State<JobDetailsScreen> {
                   )
                 : Text(_buttonLabel(status)),
           ),
+          if (status == 'pending') ...[
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _isUpdating ? null : _rejectJob,
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Reject Booking'),
+            ),
+          ],
         ],
       ),
     );

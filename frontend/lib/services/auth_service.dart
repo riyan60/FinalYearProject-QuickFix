@@ -28,6 +28,7 @@ class AuthService {
   }
 
   static Future<void> restoreSession() async {
+    ApiService.setUnauthorizedHandler(clearLocalSession);
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
     final rawSession = prefs.getString(_sessionKey);
@@ -42,6 +43,12 @@ class AuthService {
         _currentSession = Map<String, dynamic>.from(decoded);
       }
     }
+  }
+
+  static Future<void> clearLocalSession() async {
+    ApiService.setAuthToken(null);
+    _currentSession = null;
+    await _persistSession();
   }
 
   static Future<void> _persistSession() async {
@@ -187,9 +194,7 @@ class AuthService {
     } catch (_) {
       return {'message': 'Logged out locally'};
     } finally {
-      ApiService.setAuthToken(null);
-      _currentSession = null;
-      await _persistSession();
+      await clearLocalSession();
     }
   }
 

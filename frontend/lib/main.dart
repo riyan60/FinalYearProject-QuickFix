@@ -20,11 +20,43 @@ import 'screens/location/location_picker_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AuthService.restoreSession();
-  runApp(const QuickFixApp());
+  runApp(const AppBootstrap());
+}
+
+class AppBootstrap extends StatefulWidget {
+  const AppBootstrap({super.key});
+
+  static _AppBootstrapState of(BuildContext context) {
+    final state = context.findAncestorStateOfType<_AppBootstrapState>();
+    assert(state != null, 'AppBootstrap not found in context');
+    return state!;
+  }
+
+  @override
+  State<AppBootstrap> createState() => _AppBootstrapState();
+}
+
+class _AppBootstrapState extends State<AppBootstrap> {
+  Key _appKey = UniqueKey();
+
+  Future<void> reloadApplication() async {
+    await AuthService.restoreSession();
+    if (!mounted) return;
+    setState(() {
+      _appKey = UniqueKey();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return QuickFixApp(key: _appKey, onReloadApp: reloadApplication);
+  }
 }
 
 class QuickFixApp extends StatelessWidget {
-  const QuickFixApp({super.key});
+  final Future<void> Function() onReloadApp;
+
+  const QuickFixApp({super.key, required this.onReloadApp});
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +79,12 @@ class QuickFixApp extends StatelessWidget {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: ThemeData(fontFamily: 'Georgia'),
+        builder: (context, child) {
+          return GlobalPullToReload(
+            onReload: onReloadApp,
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
         home: home,
         routes: {
           '/job-details': (context) => const JobDetailsScreen(),
@@ -59,6 +97,112 @@ class QuickFixApp extends StatelessWidget {
           '/repairman-map': (context) => const LocationPickerScreen(),
           '/notifications': (context) => const NotificationsPage(),
         },
+      ),
+    );
+  }
+}
+
+class GlobalPullToReload extends StatefulWidget {
+  final Widget child;
+  final Future<void> Function() onReload;
+
+  const GlobalPullToReload({
+    super.key,
+    required this.child,
+    required this.onReload,
+  });
+
+  @override
+  State<GlobalPullToReload> createState() => _GlobalPullToReloadState();
+}
+
+class _GlobalPullToReloadState extends State<GlobalPullToReload> {
+  static const double _triggerDistance = 110;
+  static const double _topActivationZone = 80;
+
+  double _pullDistance = 0;
+  bool _trackingPull = false;
+  bool _reloading = false;
+
+  void _handleDragStart(DragStartDetails details) {
+    if (_reloading) return;
+    _trackingPull = details.globalPosition.dy <= _topActivationZone;
+    if (!_trackingPull && _pullDistance != 0) {
+      setState(() {
+        _pullDistance = 0;
+      });
+    }
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    if (!_trackingPull || _reloading) return;
+    final nextDistance =
+        (_pullDistance + details.delta.dy).clamp(
+          0.0,
+          _triggerDistance * 1.4,
+        ) as double;
+    if (nextDistance == _pullDistance) return;
+    setState(() {
+      _pullDistance = nextDistance;
+    });
+  }
+
+  Future<void> _handleDragEnd() async {
+    if (!_trackingPull) return;
+    _trackingPull = false;
+
+    if (_pullDistance >= _triggerDistance && !_reloading) {
+      setState(() {
+        _reloading = true;
+      });
+      await widget.onReload();
+      if (!mounted) return;
+      setState(() {
+        _reloading = false;
+        _pullDistance = 0;
+      });
+      return;
+    }
+
+    if (_pullDistance != 0) {
+      setState(() {
+        _pullDistance = 0;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (_pullDistance / _triggerDistance).clamp(0.0, 1.0) as double;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragStart: _handleDragStart,
+      onVerticalDragUpdate: _handleDragUpdate,
+      onVerticalDragEnd: (_) => _handleDragEnd(),
+      onVerticalDragCancel: () {
+        _handleDragEnd();
+      },
+      child: Stack(
+        children: [
+          widget.child,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                height: _reloading || progress > 0 ? 6 : 0,
+                child: LinearProgressIndicator(
+                  value: _reloading ? null : progress,
+                  backgroundColor: Colors.transparent,
+                  color: const Color(0xFF3559A8),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

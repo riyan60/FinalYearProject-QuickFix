@@ -1,10 +1,11 @@
 const { db } = require("../firebase");
 const crypto = require("crypto");
 const Razorpay = require("razorpay");
+const env = require("../config/env");
 
 function getRazorpayConfig() {
-  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
-  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  const keyId = env.razorpayKeyId();
+  const keySecret = env.razorpayKeySecret();
 
   if (!keyId || !keySecret) {
     return null;
