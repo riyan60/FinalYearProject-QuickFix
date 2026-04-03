@@ -15,48 +15,48 @@ import 'screens/repairman/dashboard/repairman_home_page.dart';
 import 'screens/repairman/jobs/job_details.dart';
 import 'screens/repairman/jobs/job_requests_page.dart';
 import 'screens/repairman/profile/repairman_profile_route_page.dart';
+import 'screens/repairman/reviews/repairman_reviews_page.dart';
 import 'screens/location/location_picker_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AuthService.restoreSession();
-  runApp(const AppBootstrap());
+  runApp(const QuickFixApp());
 }
 
-class AppBootstrap extends StatefulWidget {
-  const AppBootstrap({super.key});
+class QuickFixApp extends StatefulWidget {
+  const QuickFixApp({super.key});
 
-  static _AppBootstrapState of(BuildContext context) {
-    final state = context.findAncestorStateOfType<_AppBootstrapState>();
-    assert(state != null, 'AppBootstrap not found in context');
-    return state!;
+  @override
+  State<QuickFixApp> createState() => _QuickFixAppState();
+}
+
+class _QuickFixAppState extends State<QuickFixApp> {
+  late final CartProvider _cartProvider;
+  late final JobProvider _jobProvider;
+  late final NotificationProvider _notificationProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    _cartProvider = CartProvider();
+    _jobProvider = JobProvider();
+    _notificationProvider = NotificationProvider()..initialize();
   }
 
   @override
-  State<AppBootstrap> createState() => _AppBootstrapState();
-}
+  void dispose() {
+    _cartProvider.dispose();
+    _jobProvider.dispose();
+    _notificationProvider.dispose();
+    super.dispose();
+  }
 
-class _AppBootstrapState extends State<AppBootstrap> {
-  Key _appKey = UniqueKey();
-
-  Future<void> reloadApplication() async {
+  Future<void> _reloadApplication() async {
     await AuthService.restoreSession();
     if (!mounted) return;
-    setState(() {
-      _appKey = UniqueKey();
-    });
+    setState(() {});
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return QuickFixApp(key: _appKey, onReloadApp: reloadApplication);
-  }
-}
-
-class QuickFixApp extends StatelessWidget {
-  final Future<void> Function() onReloadApp;
-
-  const QuickFixApp({super.key, required this.onReloadApp});
 
   @override
   Widget build(BuildContext context) {
@@ -70,10 +70,10 @@ class QuickFixApp extends StatelessWidget {
 
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (context) => CartProvider()),
-        ChangeNotifierProvider(create: (context) => JobProvider()),
-        ChangeNotifierProvider(
-          create: (context) => NotificationProvider()..initialize(),
+        ChangeNotifierProvider<CartProvider>.value(value: _cartProvider),
+        ChangeNotifierProvider<JobProvider>.value(value: _jobProvider),
+        ChangeNotifierProvider<NotificationProvider>.value(
+          value: _notificationProvider,
         ),
       ],
       child: MaterialApp(
@@ -81,7 +81,7 @@ class QuickFixApp extends StatelessWidget {
         theme: ThemeData(fontFamily: 'Georgia'),
         builder: (context, child) {
           return GlobalPullToReload(
-            onReload: onReloadApp,
+            onReload: _reloadApplication,
             child: child ?? const SizedBox.shrink(),
           );
         },
@@ -91,6 +91,7 @@ class QuickFixApp extends StatelessWidget {
           '/job-requests': (context) =>
               const JobRequestsPage(initialStatus: 'pending'),
           '/earnings': (context) => const EarningsScreen(),
+          '/reviews': (context) => const RepairmanReviewsPage(),
           '/booking-history': (context) => const BookingHistoryPage(),
           '/reset-password': (context) => const ResetPasswordPage(),
           '/repairman-profile': (context) => const RepairmanProfileRoutePage(),

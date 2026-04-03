@@ -4,6 +4,7 @@ import 'login_page.dart';
 import '../location/location_picker_screen.dart';
 import '../../core/utils/validators.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/city_service.dart';
 
 class SignupRepairman extends StatefulWidget {
@@ -17,9 +18,14 @@ class _SignupRepairmanState extends State<SignupRepairman> {
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _isLoading = false;
+  bool _isSendingOtp = false;
+  bool _isVerifyingOtp = false;
+  bool _isEmailVerified = false;
+  String _emailVerificationToken = '';
   bool _isLoadingCities = true;
   LatLng? _selectedLocation;
   final CityService _cityService = CityService();
+  final AuthService _authService = AuthService();
   List<String> _cities = [];
   String? _selectedCity;
 
@@ -40,6 +46,7 @@ class _SignupRepairmanState extends State<SignupRepairman> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _otpController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
@@ -52,6 +59,14 @@ class _SignupRepairmanState extends State<SignupRepairman> {
   void initState() {
     super.initState();
     _loadCities();
+    _emailController.addListener(() {
+      if (_isEmailVerified || _emailVerificationToken.isNotEmpty) {
+        setState(() {
+          _isEmailVerified = false;
+          _emailVerificationToken = '';
+        });
+      }
+    });
   }
 
   Future<void> _loadCities() async {
@@ -82,6 +97,7 @@ class _SignupRepairmanState extends State<SignupRepairman> {
     _usernameController.dispose();
     _nameController.dispose();
     _emailController.dispose();
+    _otpController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _phoneController.dispose();
@@ -144,6 +160,14 @@ class _SignupRepairmanState extends State<SignupRepairman> {
       _showError(emailError);
       return;
     }
+    if (!_isEmailVerified) {
+      _showError("Please verify your email with OTP before creating account");
+      return;
+    }
+    if (_emailVerificationToken.trim().isEmpty) {
+      _showError("Email verification token missing. Verify email OTP again.");
+      return;
+    }
 
     final phoneError = Validators.validatePhone(_phoneController.text);
     if (phoneError != null) {
@@ -171,6 +195,8 @@ class _SignupRepairmanState extends State<SignupRepairman> {
           'experience': _selectedExperience ?? 0,
           'hourlyRate': double.tryParse(_hourlyRateController.text) ?? 0,
           'bio': _descriptionController.text.trim(),
+          'email_verified': true,
+          'email_verification_token': _emailVerificationToken.trim(),
         });
 
       if (mounted) {
@@ -191,6 +217,99 @@ class _SignupRepairmanState extends State<SignupRepairman> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _sendSignupOtp() async {
+    final email = _emailController.text.trim();
+    final emailError = Validators.validateEmail(email);
+    if (emailError != null) {
+      _showError(emailError);
+      return;
+    }
+
+    setState(() {
+      _isSendingOtp = true;
+      _isEmailVerified = false;
+      _emailVerificationToken = '';
+    });
+
+    try {
+      final response = await _authService.requestSignupOtp(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response['message'] ?? 'OTP sent to your email'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingOtp = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _verifySignupOtp() async {
+    final email = _emailController.text.trim();
+    final otp = _otpController.text.trim();
+    final emailError = Validators.validateEmail(email);
+    if (emailError != null) {
+      _showError(emailError);
+      return;
+    }
+    if (otp.length < 4) {
+      _showError("Enter a valid OTP");
+      return;
+    }
+
+    setState(() {
+      _isVerifyingOtp = true;
+    });
+
+    try {
+      final response = await _authService.verifySignupOtp(email, otp);
+      if (!mounted) return;
+      final token =
+          (response['verification_token'] ??
+                  response['email_verification_token'] ??
+                  response['token'] ??
+                  '')
+              .toString()
+              .trim();
+      if (token.isEmpty) {
+        _showError(
+          "Backend did not return email verification token. Please configure verification API.",
+        );
+        return;
+      }
+      setState(() {
+        _isEmailVerified = true;
+        _emailVerificationToken = token;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response['message'] ?? 'Email verified successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isEmailVerified = false;
+        _emailVerificationToken = '';
+      });
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isVerifyingOtp = false;
         });
       }
     }
@@ -268,6 +387,64 @@ class _SignupRepairmanState extends State<SignupRepairman> {
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
             ),
+            _buildSignupField(
+              Icons.password_outlined,
+              "Email OTP",
+              controller: _otpController,
+              keyboardType: TextInputType.number,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: (_isLoading || _isSendingOtp)
+                          ? null
+                          : _sendSignupOtp,
+                      child: _isSendingOtp
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text("Send OTP"),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: (_isLoading || _isVerifyingOtp)
+                          ? null
+                          : _verifySignupOtp,
+                      child: _isVerifyingOtp
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text("Verify OTP"),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _isEmailVerified
+                    ? "Email verified"
+                    : "Email verification pending",
+                style: TextStyle(
+                  color: _isEmailVerified ? Colors.green : Colors.orange,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             _buildSignupField(
               Icons.phone_outlined,
               "Phone No",

@@ -135,5 +135,9 @@ class Booking {
       extraData['repairman_completion_confirmed'] == true ||
       extraData['repairmanCompletionConfirmed'] == true;
 
+  bool get reviewSubmitted =>
+      extraData['review_submitted'] == true ||
+      extraData['reviewSubmitted'] == true;
+
   bool get isDirectRepairmanBooking => bookingType == 'direct_repairman';
 }

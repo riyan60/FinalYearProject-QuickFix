@@ -28,6 +28,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
   Timer? _pollTimer;
   String _statusText = 'Loading repairman location...';
   bool _isLoading = true;
+  bool _isFollowingCamera = true;
+  bool _isProgrammaticCameraMove = false;
 
   @override
   void initState() {
@@ -85,35 +87,8 @@ class _TrackingScreenState extends State<TrackingScreen> {
           }
         });
 
-        // Animate to show both
-        if (_mapController != null &&
-            _userLocation != null &&
-            _repairmanLocation != null) {
-          final southWestLat =
-              math.min(_userLocation!.latitude, _repairmanLocation!.latitude) -
-              0.01;
-          final southWestLng =
-              math.min(
-                _userLocation!.longitude,
-                _repairmanLocation!.longitude,
-              ) -
-              0.01;
-          final northEastLat =
-              math.max(_userLocation!.latitude, _repairmanLocation!.latitude) +
-              0.01;
-          final northEastLng =
-              math.max(
-                _userLocation!.longitude,
-                _repairmanLocation!.longitude,
-              ) +
-              0.01;
-          final bounds = LatLngBounds(
-            southwest: LatLng(southWestLat, southWestLng),
-            northeast: LatLng(northEastLat, northEastLng),
-          );
-          _mapController!.animateCamera(
-            CameraUpdate.newLatLngBounds(bounds, 100),
-          );
+        if (_isFollowingCamera) {
+          _fitCameraToPoints();
         }
       }
     } catch (e) {
@@ -123,6 +98,42 @@ class _TrackingScreenState extends State<TrackingScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _fitCameraToPoints() async {
+    if (_mapController == null ||
+        _userLocation == null ||
+        _repairmanLocation == null) {
+      return;
+    }
+
+    final southWestLat =
+        math.min(_userLocation!.latitude, _repairmanLocation!.latitude) - 0.01;
+    final southWestLng =
+        math.min(_userLocation!.longitude, _repairmanLocation!.longitude) -
+        0.01;
+    final northEastLat =
+        math.max(_userLocation!.latitude, _repairmanLocation!.latitude) + 0.01;
+    final northEastLng =
+        math.max(_userLocation!.longitude, _repairmanLocation!.longitude) +
+        0.01;
+
+    final bounds = LatLngBounds(
+      southwest: LatLng(southWestLat, southWestLng),
+      northeast: LatLng(northEastLat, northEastLng),
+    );
+
+    _isProgrammaticCameraMove = true;
+    try {
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 100),
+      );
+    } finally {
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (!mounted) return;
+        _isProgrammaticCameraMove = false;
+      });
     }
   }
 
@@ -148,6 +159,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
             ),
             onMapCreated: (controller) {
               _mapController = controller;
+            },
+            onCameraMoveStarted: () {
+              if (_isProgrammaticCameraMove || !_isFollowingCamera) return;
+              setState(() {
+                _isFollowingCamera = false;
+              });
             },
             markers: {
               if (_userLocation != null)
@@ -179,6 +196,21 @@ class _TrackingScreenState extends State<TrackingScreen> {
             },
             myLocationEnabled: true,
           ),
+          if (!_isFollowingCamera)
+            Positioned(
+              right: 16,
+              bottom: 20,
+              child: FloatingActionButton.small(
+                heroTag: 'user_tracking_recenter',
+                onPressed: () {
+                  setState(() {
+                    _isFollowingCamera = true;
+                  });
+                  _fitCameraToPoints();
+                },
+                child: const Icon(Icons.my_location),
+              ),
+            ),
           Positioned(
             top: 100,
             left: 20,

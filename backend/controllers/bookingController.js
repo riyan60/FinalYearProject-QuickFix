@@ -8,6 +8,71 @@ const normalizeCurrencyAmount = (value) => {
   return Number(Math.round(numeric).toFixed(2));
 };
 
+const toDateOrNull = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === "function") {
+    const resolved = value.toDate();
+    return Number.isNaN(resolved.getTime()) ? null : resolved;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getScheduledStartAt = (booking) => {
+  const baseDate = toDateOrNull(booking.booking_date);
+  if (!baseDate) return null;
+
+  const scheduledTime = String(booking.scheduled_time || "").trim().toUpperCase();
+  if (!scheduledTime) {
+    return new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+  }
+
+  const match = scheduledTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (!match) {
+    return new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+  }
+
+  const hour12 = Number.parseInt(match[1], 10);
+  const minute = Number.parseInt(match[2], 10);
+  const period = match[3];
+
+  if (
+    !Number.isFinite(hour12) ||
+    !Number.isFinite(minute) ||
+    hour12 < 1 ||
+    hour12 > 12 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+  }
+
+  let hour24 = hour12 % 12;
+  if (period === "PM") hour24 += 12;
+
+  return new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate(),
+    hour24,
+    minute,
+    0,
+    0
+  );
+};
+
+const getCancellationDeadline = (booking) => {
+  const createdAt = toDateOrNull(booking.created_at);
+  const scheduledStartAt = getScheduledStartAt(booking);
+  if (!createdAt || !scheduledStartAt) return null;
+
+  const totalLeadMs = scheduledStartAt.getTime() - createdAt.getTime();
+  if (totalLeadMs <= 0) return null;
+
+  const allowedMs = Math.round(totalLeadMs * 0.2);
+  return new Date(createdAt.getTime() + allowedMs);
+};
+
 const applyCompletionState = (booking, update) => {
   const bookingMode = String(booking.booking_mode || "").trim();
   const hasDirectMetadata =
@@ -315,6 +380,47 @@ exports.updateBookingStatus = async (req, res) => {
     }
 
     if (!status) return res.status(400).json({ message: "Status required" });
+
+    if (status === "cancelled") {
+      if (role !== "user") {
+        return res.status(403).json({ message: "Only users can cancel bookings" });
+      }
+
+      const currentStatus = String(booking.status || "").trim().toLowerCase();
+      const blockedStatuses = new Set([
+        "cancelled",
+        "completed",
+        "rejected",
+        "completion_pending_user",
+        "completion_pending_repairman",
+      ]);
+      if (blockedStatuses.has(currentStatus)) {
+        return res
+          .status(400)
+          .json({ message: "Booking cannot be cancelled from current status" });
+      }
+
+      const cancelDeadline = getCancellationDeadline(booking);
+      if (!cancelDeadline) {
+        return res.status(400).json({
+          message: "Cannot evaluate cancellation window for this booking",
+        });
+      }
+
+      if (Date.now() > cancelDeadline.getTime()) {
+        return res.status(400).json({
+          message:
+            "Cancellation is allowed only in first 20% of time between booking creation and scheduled time",
+        });
+      }
+
+      update.status = "cancelled";
+      update.cancelled_at = new Date();
+      update.cancelled_by = userId;
+
+      await db.collection("bookings").doc(bookingId).update(update);
+      return res.json({ message: "Booking cancelled", status: "cancelled" });
+    }
 
     if (status === "rejected") {
       if (role !== "repairman") {

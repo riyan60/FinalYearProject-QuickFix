@@ -41,6 +41,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   LatLng? _currentLocation;
   StreamSubscription<Position>? _positionStream;
   Timer? _searchDebounce;
+  int _activeSearchRequestId = 0;
+  bool _hasSearched = false;
 
   bool get _googleMapsSupported {
     if (kIsWeb) return true;
@@ -189,53 +191,72 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   Future<void> _searchPlaces() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) {
+      _activeSearchRequestId++;
       setState(() {
         _searchResults = [];
         _searchError = '';
+        _hasSearched = false;
       });
       return;
     }
 
+    if (query.length < 2) {
+      _activeSearchRequestId++;
+      setState(() {
+        _searchResults = [];
+        _searchError = 'Type at least 2 characters to search.';
+        _hasSearched = false;
+      });
+      return;
+    }
+
+    final requestId = ++_activeSearchRequestId;
+
     setState(() {
       _isSearching = true;
       _searchError = '';
+      _hasSearched = false;
     });
 
     try {
-      final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
-        'q': query,
-        'format': 'jsonv2',
-        'limit': '8',
-      });
-      final response = await http.get(
-        uri,
-        headers: {'User-Agent': 'QuickFix/1.0 (support@quickfix.local)'},
-      );
+      List<_SearchResult> items = const [];
 
-      if (response.statusCode != 200) {
-        throw Exception('Search failed (${response.statusCode})');
+      try {
+        items = await _searchWithNominatim(query);
+      } catch (_) {
+        // Ignore and try fallback provider below.
       }
 
-      final decoded = json.decode(response.body);
-      if (decoded is! List) {
-        throw Exception('Invalid search response');
+      if (items.isEmpty) {
+        items = await _searchWithMapsCo(query);
       }
-
-      final items = decoded
-          .map((item) => _SearchResult.fromJson(item))
-          .whereType<_SearchResult>()
-          .toList();
 
       setState(() {
         _searchResults = items;
+        _hasSearched = true;
+        if (items.isEmpty) {
+          _searchError = 'No places found. Try a broader keyword.';
+        }
       });
-    } catch (_) {
+    } on TimeoutException {
+      if (!mounted || requestId != _activeSearchRequestId) return;
       setState(() {
-        _searchError = 'Search failed. Try another keyword.';
+        _searchError = 'Search timed out. Check your connection and retry.';
         _searchResults = [];
+        _hasSearched = true;
+      });
+    } catch (error) {
+      if (!mounted || requestId != _activeSearchRequestId) return;
+      final message = error.toString().replaceFirst('Exception: ', '');
+      setState(() {
+        _searchError = message.isEmpty
+            ? 'Search failed. Try another keyword.'
+            : message;
+        _searchResults = [];
+        _hasSearched = true;
       });
     } finally {
-      if (mounted) {
+      if (mounted && requestId == _activeSearchRequestId) {
         setState(() {
           _isSearching = false;
         });
@@ -248,9 +269,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     final query = value.trim();
 
     if (query.isEmpty) {
+      _activeSearchRequestId++;
       setState(() {
         _searchResults = [];
         _searchError = '';
+        _isSearching = false;
+        _hasSearched = false;
       });
       return;
     }
@@ -260,11 +284,81 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   void _clearSearch() {
     _searchDebounce?.cancel();
+    _activeSearchRequestId++;
     setState(() {
       _searchController.clear();
       _searchResults = [];
       _searchError = '';
+      _isSearching = false;
+      _hasSearched = false;
     });
+  }
+
+  Future<List<_SearchResult>> _searchWithNominatim(String query) async {
+    final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
+      'q': query,
+      'format': 'jsonv2',
+      'addressdetails': '1',
+      'limit': '8',
+      'countrycodes': 'in',
+    });
+    final headers = <String, String>{
+      'Accept': 'application/json',
+    };
+    if (!kIsWeb) {
+      headers['User-Agent'] = 'QuickFixApp/1.0 (support@quickfix.app)';
+      headers['Accept-Language'] = 'en';
+    }
+
+    final response = await http.get(uri, headers: headers).timeout(
+      const Duration(seconds: 12),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Search failed (${response.statusCode}). Please try again.',
+      );
+    }
+
+    final decoded = json.decode(response.body);
+    if (decoded is! List) {
+      throw Exception('Invalid search response');
+    }
+
+    return decoded
+        .map((item) => _SearchResult.fromJson(item))
+        .whereType<_SearchResult>()
+        .toList();
+  }
+
+  Future<List<_SearchResult>> _searchWithMapsCo(String query) async {
+    final uri = Uri.https('geocode.maps.co', '/search', {
+      'q': query,
+      'country': 'IN',
+    });
+    final response = await http.get(
+      uri,
+      headers: {
+        'Accept': 'application/json',
+      },
+    ).timeout(const Duration(seconds: 12));
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Search service unavailable (${response.statusCode}). Please try again.',
+      );
+    }
+
+    final decoded = json.decode(response.body);
+    if (decoded is! List) {
+      throw Exception('Invalid fallback search response');
+    }
+
+    return decoded
+        .map((item) => _SearchResult.fromJson(item))
+        .whereType<_SearchResult>()
+        .take(8)
+        .toList();
   }
 
   Future<void> _moveTo(LatLng point) async {
@@ -363,7 +457,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     final shouldShowCard =
         _searchError.isNotEmpty ||
         _searchResults.isNotEmpty ||
-        (hasQuery && (_isSearching || _searchResults.isEmpty));
+        (hasQuery && (_isSearching || (_hasSearched && _searchResults.isEmpty)));
 
     if (!shouldShowCard) {
       return const SizedBox.shrink();

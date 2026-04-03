@@ -12,6 +12,7 @@ import '../cart/cart_page.dart';
 import '../history/booking_history_page.dart';
 import '../home/user_home_page.dart';
 import 'user_profile_edit_page.dart';
+import '../../shared/feedback_contact_page.dart';
 
 class InfoPage extends StatelessWidget {
   final String title;
@@ -196,126 +197,251 @@ class _UserProfilePageState extends State<UserProfilePage> {
           ),
         ],
       ),
-      backgroundColor: const Color(0xFFF4F7FA),
-      body: Column(
+      backgroundColor: const Color(0xFFF1F5FB),
+      body: ListView(
+        padding: EdgeInsets.zero,
         children: [
           Container(
-            height: 180,
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
             decoration: const BoxDecoration(
-              color: Color(0xFF4A90E2),
+              gradient: LinearGradient(
+                colors: [Color(0xFF1E5CC8), Color(0xFF2B86D9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
+                bottomLeft: Radius.circular(34),
+                bottomRight: Radius.circular(34),
               ),
             ),
             child: SafeArea(
+              bottom: false,
               child: Stack(
                 children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new,
-                      color: Colors.white,
+                  Positioned(
+                    right: -30,
+                    top: -10,
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                    onPressed: () => Navigator.pop(context),
                   ),
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const CircleAvatar(
-                          radius: 40,
-                          backgroundColor: Color(0xFFD6E9FF),
-                          child: Icon(
-                            Icons.person,
-                            size: 50,
-                            color: Color(0xFF4A90E2),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          displayName,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          secondaryText,
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                        Text(
-                          tertiaryText,
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                      ],
+                  Positioned(
+                    left: -40,
+                    bottom: -60,
+                    child: Container(
+                      width: 140,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
                     ),
+                  ),
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: 86,
+                        height: 86,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        child: const Icon(
+                          Icons.person_rounded,
+                          size: 52,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        displayName,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        secondaryText,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Color(0xFFE3EEFF)),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        tertiaryText,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Color(0xFFD6E7FF)),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildHeaderPill(
+                            icon: Icons.workspace_premium_outlined,
+                            label: 'QuickFix User',
+                          ),
+                          const SizedBox(width: 10),
+                          _buildHeaderPill(
+                            icon: Icons.account_balance_wallet_outlined,
+                            label: MoneyUtils.format(_walletBalance),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+            child: Column(
               children: [
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF0F4C81), Color(0xFF3BA7B8)],
+                      colors: [Color(0xFF0C4A86), Color(0xFF178F9E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0C4A86).withValues(alpha: 0.25),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'QuickFix Wallet',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      const Row(
+                        children: [
+                          Icon(Icons.wallet_rounded, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            'QuickFix Wallet',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Text(
-                        'Balance: ${MoneyUtils.format(_walletBalance)}',
+                        MoneyUtils.format(_walletBalance),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 30,
+                          height: 1,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       const Text(
-                        'Use wallet money while booking. Wallet deductions happen for bookings that are successfully saved in the database.',
-                        style: TextStyle(color: Colors.white70),
+                        'Top up once and pay instantly during bookings.',
+                        style: TextStyle(color: Color(0xFFDDF5F7)),
                       ),
                       const SizedBox(height: 14),
-                      FilledButton(
+                      FilledButton.icon(
                         onPressed: _showTopUpDialog,
                         style: FilledButton.styleFrom(
                           backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF0F4C81),
+                          foregroundColor: const Color(0xFF0C4A86),
                         ),
-                        child: const Text('Add Money'),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Add Money'),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                _buildSection('Account Info', [
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildQuickAction(
+                        icon: Icons.badge_outlined,
+                        label: 'Edit Profile',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const EditProfileScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildQuickAction(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'My Bookings',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const BookingHistoryPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildQuickAction(
+                        icon: Icons.notifications_none_rounded,
+                        label: 'Alerts',
+                        onTap: () {
+                          Navigator.pushNamed(context, '/notifications');
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                _buildSection('Account', [
                   _buildListTile(
                     context,
                     Icons.account_balance_wallet_outlined,
                     'Wallet',
+                    subtitle: 'Top up and manage wallet balance',
                     onTap: _showTopUpDialog,
                   ),
                   _buildListTile(
                     context,
                     Icons.badge_outlined,
-                    'Account',
+                    'Account Details',
+                    subtitle: 'View and update profile details',
                     onTap: () {
                       Navigator.push(
                         context,
@@ -327,16 +453,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   ),
                   _buildListTile(
                     context,
-                    Icons.notifications_none,
-                    'Notifications',
-                    onTap: () {
-                      Navigator.pushNamed(context, '/notifications');
-                    },
-                  ),
-                  _buildListTile(
-                    context,
-                    Icons.lock,
+                    Icons.lock_outline_rounded,
                     'Privacy',
+                    subtitle: 'Session and account privacy information',
                     onTap: () => _openInfoPage(
                       context,
                       'Privacy',
@@ -344,24 +463,28 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
                   ),
                 ]),
-                _buildSection('Support & About', [
+                _buildSection('Support', [
                   _buildListTile(
                     context,
-                    Icons.calendar_today_outlined,
-                    'My Bookings',
+                    Icons.feedback_outlined,
+                    'Feedback & Contact',
+                    subtitle: 'Share feedback or contact support',
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const BookingHistoryPage(),
+                          builder: (_) => const FeedbackContactPage(
+                            initialFeedbackType: 'user',
+                          ),
                         ),
                       );
                     },
                   ),
                   _buildListTile(
                     context,
-                    Icons.help,
+                    Icons.help_outline_rounded,
                     'Help & Support',
+                    subtitle: 'Get help for booking or payment issues',
                     onTap: () => _openInfoPage(
                       context,
                       'Help & Support',
@@ -370,8 +493,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   ),
                   _buildListTile(
                     context,
-                    Icons.info,
+                    Icons.info_outline_rounded,
                     'Terms and Policies',
+                    subtitle: 'Important usage guidelines',
                     onTap: () => _openInfoPage(
                       context,
                       'Terms and Policies',
@@ -382,8 +506,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                 _buildSection('Actions', [
                   _buildListTile(
                     context,
-                    Icons.flag,
-                    'Report a problem',
+                    Icons.flag_outlined,
+                    'Report a Problem',
+                    subtitle: 'Raise a technical or service issue',
                     onTap: () => _openInfoPage(
                       context,
                       'Report a problem',
@@ -392,8 +517,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   ),
                   _buildListTile(
                     context,
-                    Icons.person_add,
-                    'Switch account',
+                    Icons.person_add_alt_1_outlined,
+                    'Switch Account',
+                    subtitle: 'Sign in with another account',
                     onTap: () {
                       Navigator.pushReplacement(
                         context,
@@ -405,8 +531,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   ),
                   _buildListTile(
                     context,
-                    Icons.logout,
-                    'Log out',
+                    Icons.logout_rounded,
+                    'Log Out',
+                    subtitle: 'Sign out from this device',
+                    danger: true,
                     onTap: () async {
                       await AuthService().logout();
                       if (!context.mounted) return;
@@ -469,16 +597,28 @@ class _UserProfilePageState extends State<UserProfilePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 8, bottom: 8, top: 16),
+          padding: const EdgeInsets.only(left: 6, bottom: 10, top: 16),
           child: Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E293B),
+            ),
           ),
         ),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5EAF2)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
           child: Column(children: children),
         ),
@@ -486,17 +626,110 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  Widget _buildHeaderPill({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE4EAF3)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: const Color(0xFF2E6BE6)),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildListTile(
     BuildContext context,
     IconData icon,
     String title, {
+    String? subtitle,
+    bool danger = false,
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: Colors.black87),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: danger
+              ? const Color(0xFFFFEBEE)
+              : const Color(0xFFEAF0FB),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          icon,
+          color: danger ? const Color(0xFFC62828) : const Color(0xFF2459C7),
+          size: 20,
+        ),
+      ),
       title: Text(
         title,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: danger ? const Color(0xFFB91C1C) : const Color(0xFF0F172A),
+        ),
+      ),
+      subtitle: subtitle == null
+          ? null
+          : Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF64748B),
+              ),
+            ),
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        color: Color(0xFF94A3B8),
       ),
       onTap: onTap,
     );

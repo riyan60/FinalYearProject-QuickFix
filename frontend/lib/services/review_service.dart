@@ -14,4 +14,15 @@ class ReviewService {
       'comment': comment.trim(),
     });
   }
+
+  Future<List<Map<String, dynamic>>> getMyRepairmanReviews() async {
+    final response = await _apiService.get('/api/reviews/me');
+    final rawReviews = response['reviews'];
+    if (rawReviews is! List) return const [];
+
+    return rawReviews
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
 }

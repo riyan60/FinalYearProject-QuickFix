@@ -768,16 +768,12 @@ class _CartPageState extends State<CartPage> {
                                         final name =
                                             (item['name'] ?? 'Repairman')
                                                 .toString();
-                                        final status =
-                                            (item['availability_status'] ??
-                                                    'unknown')
-                                                .toString();
                                         final rating = _repairmanRating(item);
 
                                         return DropdownMenuItem<String>(
                                           value: id,
                                           child: Text(
-                                            '$name • ${rating.toStringAsFixed(1)}★ • $status',
+                                            '$name • ${rating.toStringAsFixed(1)}★',
                                           ),
                                         );
                                       })

@@ -138,6 +138,40 @@ class AuthService {
     return response;
   }
 
+  Future<Map<String, dynamic>> requestSignupOtp(String email) async {
+    try {
+      return await _apiService.post('/api/auth/request-signup-otp', {
+        'email': email,
+      });
+    } catch (_) {
+      try {
+        return await _apiService.post('/api/auth/send-signup-otp', {
+          'email': email,
+        });
+      } catch (_) {
+        return await _apiService.post('/api/auth/request-otp', {
+          'email': email,
+          'purpose': 'signup',
+        });
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> verifySignupOtp(String email, String otp) async {
+    try {
+      return await _apiService.post('/api/auth/verify-signup-otp', {
+        'email': email,
+        'otp': otp,
+      });
+    } catch (_) {
+      return await _apiService.post('/api/auth/verify-otp', {
+        'email': email,
+        'otp': otp,
+        'purpose': 'signup',
+      });
+    }
+  }
+
   Future<Map<String, dynamic>> getCurrentProfile() async {
     final mergedProfile = <String, dynamic>{};
     var accountId = _currentSession?['accountId'];

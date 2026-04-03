@@ -94,6 +94,43 @@ class RepairmanService {
     return _apiService.post('/api/repairmen/me/verification', data);
   }
 
+  Future<Map<String, dynamic>> requestVerificationEmailOtp(String email) async {
+    try {
+      return await _apiService.post(
+        '/api/repairmen/me/verification/request-email-otp',
+        {'email': email},
+      );
+    } catch (_) {
+      return await _apiService.post(
+        '/api/repairmen/me/verification/send-email-otp',
+        {'email': email},
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> verifyVerificationEmailOtp(
+    String email,
+    String otp,
+  ) async {
+    try {
+      return await _apiService.post(
+        '/api/repairmen/me/verification/verify-email-otp',
+        {
+          'email': email,
+          'otp': otp,
+        },
+      );
+    } catch (_) {
+      return await _apiService.post(
+        '/api/repairmen/me/verification/confirm-email-otp',
+        {
+          'email': email,
+          'otp': otp,
+        },
+      );
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getMyLinkedServices() async {
     final response = await _apiService.get('/api/repairmen/me/services');
     final rawServices = (response['services'] as List?) ?? const [];

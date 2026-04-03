@@ -10,6 +10,7 @@ import '../../../services/location_service.dart';
 import '../../../widgets/notification_bell_button.dart';
 import '../../auth/login_page.dart';
 import '../../location/location_picker_screen.dart';
+import '../../shared/feedback_contact_page.dart';
 import '../dashboard/repairman_home_page.dart';
 import '../earnings/earnings_page.dart';
 import '../jobs/job_requests_page.dart';
@@ -152,11 +153,6 @@ class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
       'Repairman',
     );
     final ratingText = widget.rating.toStringAsFixed(1);
-    final availability = _value(
-      data,
-      ['availability_status'],
-      'Availability not provided',
-    );
     final verificationStatus = _value(
       data,
       ['verification_status'],
@@ -191,21 +187,37 @@ class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
           ),
         ],
       ),
-      backgroundColor: const Color(0xFFF4F7FA),
+      backgroundColor: const Color(0xFFF1F5FB),
       body: Column(
         children: [
           Container(
-            height: 180,
+            height: 220,
             decoration: const BoxDecoration(
-              color: Color(0xFF4A90E2),
+              gradient: LinearGradient(
+                colors: [Color(0xFF1E5CC8), Color(0xFF2B86D9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
+                bottomLeft: Radius.circular(34),
+                bottomRight: Radius.circular(34),
               ),
             ),
             child: SafeArea(
               child: Stack(
                 children: [
+                  Positioned(
+                    right: -28,
+                    top: -12,
+                    child: Container(
+                      width: 118,
+                      height: 118,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
                   IconButton(
                     icon: const Icon(
                       Icons.arrow_back_ios_new,
@@ -217,21 +229,25 @@ class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const CircleAvatar(
-                          radius: 40,
-                          backgroundColor: Color(0xFFD6E9FF),
-                          child: Icon(
-                            Icons.person,
+                        Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          child: const Icon(
+                            Icons.engineering_rounded,
                             size: 50,
-                            color: Color(0xFF4A90E2),
+                            color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         Text(
                           displayName,
                           style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
                             color: Colors.white,
                           ),
                         ),
@@ -243,18 +259,18 @@ class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
                           tertiaryText,
                           style: const TextStyle(color: Colors.white70),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 10),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                            horizontal: 14,
+                            vertical: 7,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
-                            'Verification: ${verificationStatus.replaceAll('_', ' ')}',
+                            'Rating $ratingText • ${verificationStatus.replaceAll('_', ' ')}',
                             style: const TextStyle(color: Colors.white),
                           ),
                         ),
@@ -274,23 +290,72 @@ class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
                     onPressed: () => _openInfoPage(
                       context,
                       'Account details',
-                      'Rating: $ratingText\nAvailability: $availability\nHourly rate: ${MoneyUtils.format(hourlyRate)}\nExperience: $experience year(s)\nAddress: $address',
+                      'Rating: $ratingText\nHourly rate: ${MoneyUtils.format(hourlyRate)}\nExperience: $experience year(s)\nAddress: $address',
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF42A5F5),
+                      backgroundColor: const Color(0xFF1E5CC8),
                       foregroundColor: Colors.white,
-                      minimumSize: const Size(180, 45),
+                      elevation: 2,
+                      minimumSize: const Size(210, 48),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(22),
                       ),
                     ),
                     child: const Text(
                       'Account details',
-                      style: TextStyle(fontSize: 16),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),
                 const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildQuickAction(
+                        icon: Icons.miscellaneous_services_outlined,
+                        label: 'Services',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RepairmanServicesPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildQuickAction(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Jobs',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const JobRequestsPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildQuickAction(
+                        icon: Icons.attach_money_rounded,
+                        label: 'Earnings',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const EarningsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
                 _buildSection('Account Info', [
                   _buildListTile(
                     context,
@@ -384,6 +449,21 @@ class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const EarningsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.feedback_outlined,
+                    'Feedback & Contact',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FeedbackContactPage(
+                            initialFeedbackType: 'repairman',
+                          ),
                         ),
                       );
                     },
@@ -489,20 +569,66 @@ class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 8, bottom: 8, top: 16),
+          padding: const EdgeInsets.only(left: 6, bottom: 10, top: 16),
           child: Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E293B),
+            ),
           ),
         ),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5EAF2)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
           child: Column(children: children),
         ),
       ],
+    );
+  }
+
+  Widget _buildQuickAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE4EAF3)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: const Color(0xFF2E6BE6)),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -513,10 +639,31 @@ class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: Colors.black87),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: const Color(0xFFEAF0FB),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          icon,
+          color: const Color(0xFF2459C7),
+          size: 20,
+        ),
+      ),
       title: Text(
         title,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF0F172A),
+        ),
+      ),
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        color: Color(0xFF94A3B8),
       ),
       onTap: onTap,
     );

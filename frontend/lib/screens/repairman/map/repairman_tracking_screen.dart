@@ -26,6 +26,8 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
   Timer? _pollTimer;
   bool _isLoading = true;
   String _statusText = 'Loading user location...';
+  bool _isFollowingCamera = true;
+  bool _isProgrammaticCameraMove = false;
 
   @override
   void initState() {
@@ -85,7 +87,9 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
             '${distanceKm.toStringAsFixed(1)} km to user, ETA $etaMinutes min';
       });
 
-      _fitCameraToPoints();
+      if (_isFollowingCamera) {
+        _fitCameraToPoints();
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -96,7 +100,7 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
     }
   }
 
-  void _fitCameraToPoints() {
+  Future<void> _fitCameraToPoints() async {
     if (_mapController == null ||
         _userLocation == null ||
         _repairmanLocation == null) {
@@ -119,7 +123,17 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
       northeast: LatLng(northEastLat, northEastLng),
     );
 
-    _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+    _isProgrammaticCameraMove = true;
+    try {
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 80),
+      );
+    } finally {
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (!mounted) return;
+        _isProgrammaticCameraMove = false;
+      });
+    }
   }
 
   @override
@@ -147,6 +161,12 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
             onMapCreated: (controller) {
               _mapController = controller;
               _fitCameraToPoints();
+            },
+            onCameraMoveStarted: () {
+              if (_isProgrammaticCameraMove || !_isFollowingCamera) return;
+              setState(() {
+                _isFollowingCamera = false;
+              });
             },
             markers: {
               if (_userLocation != null)
@@ -176,6 +196,21 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
             },
             myLocationEnabled: true,
           ),
+          if (!_isFollowingCamera)
+            Positioned(
+              right: 16,
+              bottom: 20,
+              child: FloatingActionButton.small(
+                heroTag: 'repairman_tracking_recenter',
+                onPressed: () {
+                  setState(() {
+                    _isFollowingCamera = true;
+                  });
+                  _fitCameraToPoints();
+                },
+                child: const Icon(Icons.my_location),
+              ),
+            ),
           Positioned(
             top: 100,
             left: 20,
