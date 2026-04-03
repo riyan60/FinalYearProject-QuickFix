@@ -1,29 +1,32 @@
-# Master Remediation TODO List
+# Repairman Module - Additional Issues
+## Status: Diagnosing Map/Profile
 
-## 1. Security & Environment (High Priority)
-- [x] Provide instructions to remove .env and serviceAccountKey.json from Git history
-- [x] Create .env.example template for backend
-- [ ] Update Flutter api_constants.dart with environment-based configuration
+### Fixed:
+- [x] JobProvider wiring
 
-## 2. Backend Infrastructure & Routing
-- [ ] Add npm scripts (start, dev) to package.json
-- [ ] Consolidate registration logic - remove duplicate registerClient from clientController
-- [ ] Implement robust logout with token invalidation in authController
-- [ ] Implement RBAC: restrict POST /services to admin/repairman roles
+### New Issues (Booking Map/Profile):
+1. **Map (tracking_screen.dart):** 
+   - Works! Calls `/api/location/$bookingId` → backend fetches repairman loc
+   - repairman_tracking_screen.dart: Only local Geoloc, no API sync for user loc
 
-## 3. Flutter Architecture Refactoring
-- [ ] Refactor signup_user.dart to use ApiService instead of direct http calls
-- [ ] Update api_service.dart to use api_constants.dart for baseUrl
-- [ ] Ensure consistent base URL across the app
+2. **Profile (repairman_profile_page.dart):** 
+   - Location sharing calls `/api/location/update` ✓
+   - UI static - shows profileData passed as prop (from where?)
 
-## 4. Feature Implementation (Code Scaffolding)
-- [ ] Create Rating/Review system (backend schema and controller)
-- [ ] Create real-time booking status (WebSocket/Firebase)
-- [ ] Outline Search/Filter UI logic
-- [ ] Outline Profile management screen
-- [ ] Outline Booking status listener
+### VSCode Open Tabs Show:
+- locationController.js, locationRoutes.js, location_service.dart → Location issues
+- booking_service.dart → Booking creation saves user lat/lng ✓
 
----
+### Quick Test Commands:
+```
+# Backend only (Windows CMD):
+cd backend && npm start
+curl http://localhost:5000/api/repairmen/me/jobs -H "Authorization: Bearer YOUR_TOKEN"
 
-## Implementation Status:
-- [ ] NOT STARTED
+# Flutter after provider fix:
+cd frontend && flutter run
+
+Login repairman → Dashboard → Jobs → Map/Profile
+```
+
+**Test with real repairman login/data to see exact error.**

@@ -6,8 +6,30 @@ class CartProvider with ChangeNotifier {
 
   List<Service> get cartItems => _cartItems;
 
+  String _normalizeCategory(String value) {
+    return value.trim().toLowerCase();
+  }
+
+  String? get primaryCategory {
+    if (_cartItems.isEmpty) return null;
+    return _normalizeCategory(_cartItems.first.category);
+  }
+
+  bool hasCategoryConflict(Service service) {
+    final existingCategory = primaryCategory;
+    if (existingCategory == null) return false;
+    return existingCategory != _normalizeCategory(service.category);
+  }
+
   void addService(Service service) {
     _cartItems.add(service);
+    notifyListeners();
+  }
+
+  void replaceCartWith(Service service) {
+    _cartItems
+      ..clear()
+      ..add(service);
     notifyListeners();
   }
 

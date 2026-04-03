@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'dart:async';
 
-import '../../../services/repairman/job_service.dart';
+import '../../../core/utils/money_utils.dart';
+import '../../../providers/repairman/job_provider.dart';
+import '../../../services/location_service.dart';
 import 'job_details.dart';
 
 class JobRequestsPage extends StatefulWidget {
@@ -13,34 +17,60 @@ class JobRequestsPage extends StatefulWidget {
 }
 
 class _JobRequestsPageState extends State<JobRequestsPage> {
-  final JobService _jobService = JobService();
+  late JobProvider jobProvider;
   late String _selectedStatus;
-  late Future<List<dynamic>> _jobsFuture;
+  Timer? _locationTimer;
 
   @override
   void initState() {
     super.initState();
+    jobProvider = Provider.of<JobProvider>(context, listen: false);
     _selectedStatus = widget.initialStatus;
-    _jobsFuture = _loadJobs();
+    jobProvider.loadJobs(status: _selectedStatus);
+    _startLocationSharing();
   }
 
-  Future<List<dynamic>> _loadJobs() async {
-    if (_selectedStatus == 'active') {
-      final jobs = await _jobService.getMyJobs();
-      return jobs.where((booking) {
-        if (booking is! Map) return false;
-        final status = (booking['status'] ?? '').toString().toLowerCase();
-        return status == 'accepted' || status == 'in_progress';
-      }).toList();
-    }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    jobProvider.loadJobs(status: _selectedStatus);
+  }
 
-    return _jobService.getMyJobs(status: _selectedStatus);
+  @override
+  void dispose() {
+    _locationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startLocationSharing() async {
+    try {
+      final position = await LocationService.getCurrentPosition();
+      if (position == null) return;
+
+      await LocationService.updateRepairmanLocation(
+        position.latitude,
+        position.longitude,
+      );
+
+      _locationTimer?.cancel();
+      _locationTimer = Timer.periodic(const Duration(seconds: 5), (
+        timer,
+      ) async {
+        final newPosition = await LocationService.getCurrentPosition();
+        if (newPosition == null) return;
+        await LocationService.updateRepairmanLocation(
+          newPosition.latitude,
+          newPosition.longitude,
+        );
+      });
+    } catch (e) {
+      debugPrint('Repairman location sharing error: $e');
+    }
   }
 
   Future<void> _refreshJobs() async {
-    setState(() {
-      _jobsFuture = _loadJobs();
-    });
+    jobProvider.refresh();
+    if (mounted) setState(() {});
   }
 
   DateTime? _parseDate(dynamic value) {
@@ -61,27 +91,83 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
         '${date.year}';
   }
 
+  String _formatStatus(String status) {
+    final normalized = status.trim();
+    if (normalized.isEmpty) return 'Pending';
+    return normalized
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map(
+          (word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
+
+  bool _isDirectBooking(Map<String, dynamic> booking) {
+    return (booking['booking_type'] ?? '').toString() == 'direct_repairman';
+  }
+
+  String? _nextStatus(Map<String, dynamic> booking) {
+    final status = (booking['status'] ?? '').toString().toLowerCase();
+    if (_isDirectBooking(booking)) {
+      if (status == 'pending') return 'booking_confirmed';
+      if (status == 'booking_confirmed') return 'reached_destination';
+      if (status == 'reached_destination') return 'completed';
+      if (status == 'arrival_confirmed') return 'completed';
+      if (status == 'completion_pending_repairman') return 'completed';
+      return null;
+    }
+
+    if (status == 'pending') return 'accepted';
+    if (status == 'accepted') return 'in_progress';
+    if (status == 'in_progress') return 'completed';
+    if (status == 'completion_pending_repairman') return 'completed';
+    return null;
+  }
+
+  String _actionLabel(Map<String, dynamic> booking) {
+    final status = (booking['status'] ?? '').toString().toLowerCase();
+    if (_isDirectBooking(booking)) {
+      if (status == 'pending') return 'Confirm';
+      if (status == 'booking_confirmed') return 'Reached';
+      if (status == 'arrival_confirmed') return 'Complete';
+      if (status == 'reached_destination') return 'Complete';
+      if (status == 'completion_pending_user') return 'Waiting for User';
+      if (status == 'completion_pending_repairman') return 'Confirm Completion';
+      return 'Done';
+    }
+
+    if (status == 'pending') return 'Accept';
+    if (status == 'accepted') return 'Start';
+    if (status == 'completion_pending_user') return 'Waiting for User';
+    if (status == 'completion_pending_repairman') return 'Confirm Completion';
+    if (status == 'in_progress') return 'Complete';
+    return 'Done';
+  }
+
   Future<void> _updateJobStatus(String bookingId, String status) async {
     try {
-      if (status == 'accepted') {
-        await _jobService.acceptJob(bookingId);
-      } else if (status == 'in_progress') {
-        await _jobService.startJob(bookingId);
-      } else if (status == 'completed') {
-        await _jobService.completeJob(bookingId);
-      }
-
+      await jobProvider.updateJobStatus(bookingId, status);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Booking marked as $status')));
-      await _refreshJobs();
+      ).showSnackBar(SnackBar(content: Text('Job ${_formatStatus(status)}')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+          content: Text(
+            'Error: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
       );
     }
+  }
+
+  Future<void> _rejectJob(String bookingId) async {
+    await _updateJobStatus(bookingId, 'rejected');
   }
 
   @override
@@ -111,44 +197,32 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
               onSelectionChanged: (selection) {
                 setState(() {
                   _selectedStatus = selection.first;
-                  _jobsFuture = _loadJobs();
                 });
+                jobProvider.loadJobs(status: _selectedStatus);
               },
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refreshJobs,
-              child: FutureBuilder<List<dynamic>>(
-                future: _jobsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+            child: Consumer<JobProvider>(
+              builder: (context, provider, child) {
+                if (provider.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        snapshot.error.toString().replaceFirst(
-                          'Exception: ',
-                          '',
-                        ),
-                      ),
-                    );
-                  }
+                final jobs = provider.jobs;
+                if (jobs.isEmpty) {
+                  return Center(
+                    child: Text(
+                      _selectedStatus == 'active'
+                          ? 'No active jobs found'
+                          : 'No ${_selectedStatus.replaceAll('_', ' ')} jobs found',
+                    ),
+                  );
+                }
 
-                  final jobs = snapshot.data ?? [];
-                  if (jobs.isEmpty) {
-                    return Center(
-                      child: Text(
-                        _selectedStatus == 'active'
-                            ? 'No active jobs found'
-                            : 'No ${_selectedStatus.replaceAll('_', ' ')} jobs found',
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
+                return RefreshIndicator(
+                  onRefresh: _refreshJobs,
+                  child: ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: jobs.length,
                     itemBuilder: (context, index) {
@@ -174,15 +248,26 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Service ${booking['service_id'] ?? '-'}',
+                                _isDirectBooking(booking)
+                                    ? '${booking['specialty'] ?? 'Direct repairman booking'}'
+                                    : (booking['service_name'] ?? '').toString().trim().isNotEmpty
+                                    ? '${booking['service_name']}'
+                                    : 'Service ${booking['service_id'] ?? '-'}',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(height: 6),
+                              if (_isDirectBooking(booking))
+                                Text(
+                                  'Mode: ${_formatStatus((booking['booking_mode'] ?? '').toString())}',
+                                  style: const TextStyle(color: Colors.black54),
+                                ),
                               Text(
-                                'User ${booking['user_id'] ?? '-'}',
+                                (booking['user_name'] ?? '').toString().trim().isNotEmpty
+                                    ? 'User ${booking['user_name']}'
+                                    : 'User ${booking['user_id'] ?? '-'}',
                                 style: const TextStyle(color: Colors.black54),
                               ),
                               Text(
@@ -190,9 +275,35 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
                                 style: const TextStyle(color: Colors.black54),
                               ),
                               Text(
-                                'Amount: Rs ${booking['total_amount'] ?? 0}',
+                                'Status: ${_formatStatus((booking['status'] ?? '').toString())}',
                                 style: const TextStyle(color: Colors.black54),
                               ),
+                              Text(
+                                'Amount: ${MoneyUtils.format(booking['total_amount'])}',
+                                style: const TextStyle(color: Colors.black54),
+                              ),
+                              if (booking['actual_duration_minutes'] != null)
+                                Text(
+                                  'Worked: ${booking['actual_duration_minutes']} min',
+                                  style: const TextStyle(color: Colors.black54),
+                                ),
+                              if (booking['arrival_confirmed_by_user'] == true)
+                                const Text(
+                                  'User confirmed arrival',
+                                  style: TextStyle(color: Colors.green),
+                                ),
+                              if ((booking['repairman_completion_confirmed'] == true) &&
+                                  (booking['user_completion_confirmed'] != true))
+                                const Text(
+                                  'Completion confirmed by you. Waiting for user.',
+                                  style: TextStyle(color: Colors.orange),
+                                ),
+                              if ((booking['user_completion_confirmed'] == true) &&
+                                  (booking['repairman_completion_confirmed'] != true))
+                                const Text(
+                                  'User confirmed completion. Confirm from your side.',
+                                  style: TextStyle(color: Colors.blue),
+                                ),
                               const SizedBox(height: 12),
                               Row(
                                 children: [
@@ -211,55 +322,43 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
                                       child: const Text('View Details'),
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: _selectedStatus == 'completed'
-                                          ? null
-                                          : () {
-                                              if (_selectedStatus ==
-                                                  'pending') {
-                                                _updateJobStatus(
-                                                  bookingId,
-                                                  'accepted',
-                                                );
-                                              } else if ((booking['status'] ??
-                                                          '')
-                                                      .toString()
-                                                      .toLowerCase() ==
-                                                  'accepted') {
-                                                _updateJobStatus(
-                                                  bookingId,
-                                                  'in_progress',
-                                                );
-                                              } else if ((booking['status'] ??
-                                                          '')
-                                                      .toString()
-                                                      .toLowerCase() ==
-                                                  'in_progress') {
-                                                _updateJobStatus(
-                                                  bookingId,
-                                                  'completed',
-                                                );
-                                              }
-                                            },
-                                      child: Text(
-                                        _selectedStatus == 'pending'
-                                            ? 'Accept'
-                                            : (booking['status'] ?? '')
-                                                      .toString()
-                                                      .toLowerCase() ==
-                                                  'accepted'
-                                            ? 'Start'
-                                            : (booking['status'] ?? '')
-                                                      .toString()
-                                                      .toLowerCase() ==
-                                                  'in_progress'
-                                            ? 'Complete'
-                                            : 'Done',
+                                  if (_selectedStatus != 'completed') ...[
+                                    const SizedBox(width: 12),
+                                    if ((booking['status'] ?? '')
+                                            .toString()
+                                            .toLowerCase() ==
+                                        'pending') ...[
+                                      Expanded(
+                                        child: OutlinedButton(
+                                          onPressed: () => _rejectJob(bookingId),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.red,
+                                          ),
+                                          child: const Text('Reject'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                    ],
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed:
+                                            _actionLabel(booking) ==
+                                                    'Waiting for User'
+                                                ? null
+                                                : () {
+                                                    final nextStatus =
+                                                        _nextStatus(booking);
+                                                    if (nextStatus != null) {
+                                                      _updateJobStatus(
+                                                        bookingId,
+                                                        nextStatus,
+                                                      );
+                                                    }
+                                                  },
+                                        child: Text(_actionLabel(booking)),
                                       ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             ],
@@ -267,9 +366,9 @@ class _JobRequestsPageState extends State<JobRequestsPage> {
                         ),
                       );
                     },
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],

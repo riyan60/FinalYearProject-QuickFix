@@ -1,19 +1,62 @@
 import 'package:flutter/foundation.dart';
+import '../../../services/repairman/job_service.dart';
 
 class JobProvider extends ChangeNotifier {
+  final JobService _jobService = JobService();
   List<dynamic> _jobs = [];
   bool _isLoading = false;
+  String _currentStatus = 'pending';
 
   List<dynamic> get jobs => _jobs;
   bool get isLoading => _isLoading;
+  String get currentStatus => _currentStatus;
 
-  void setJobs(List<dynamic> jobs) {
-    _jobs = jobs;
+  Future<void> loadJobs({String status = 'pending'}) async {
+    _isLoading = true;
     notifyListeners();
+
+    try {
+      _currentStatus = status;
+      _jobs = await _jobService.getMyJobs(status: status);
+    } catch (e) {
+      debugPrint('Error loading jobs: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  void setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
+  Future<void> updateJobStatus(String bookingId, String status) async {
+    try {
+      switch (status) {
+        case 'accepted':
+          await _jobService.acceptJob(bookingId, fallbackStatus: 'accepted');
+          break;
+        case 'booking_confirmed':
+          await _jobService.acceptJob(
+            bookingId,
+            fallbackStatus: 'booking_confirmed',
+          );
+          break;
+        case 'in_progress':
+          await _jobService.startJob(bookingId, fallbackStatus: 'in_progress');
+          break;
+        case 'reached_destination':
+          await _jobService.reachDestination(bookingId);
+          break;
+        case 'completed':
+          await _jobService.completeJob(bookingId);
+          break;
+        case 'rejected':
+          await _jobService.rejectJob(bookingId);
+          break;
+      }
+      await loadJobs(status: _currentStatus);
+    } catch (e) {
+      debugPrint('Error updating status: $e');
+      rethrow;
+    }
   }
+
+  void refresh() => loadJobs(status: _currentStatus);
 }

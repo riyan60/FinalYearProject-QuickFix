@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/utils/validators.dart';
 import '../../services/password_reset_service.dart';
 import 'reset_pass_page.dart';
 
@@ -12,7 +13,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   // OTP Controllers
   final List<TextEditingController> _otpControllers = List.generate(
     4,
@@ -25,7 +26,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     for (var controller in _otpControllers) {
       controller.dispose();
     }
@@ -53,11 +54,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _requestOtp({bool resend = false}) async {
-    final username = _usernameController.text.trim();
-    if (username.isEmpty) {
+    final email = _emailController.text.trim();
+    final emailError = Validators.validateEmail(email);
+    if (emailError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter your username first.'),
+        SnackBar(
+          content: Text(emailError),
           backgroundColor: Colors.red,
         ),
       );
@@ -70,8 +72,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     try {
       final response = resend
-          ? await _passwordResetService.resendOtp(username)
-          : await _passwordResetService.requestOtp(username);
+          ? await _passwordResetService.resendOtp(email)
+          : await _passwordResetService.requestOtp(email);
 
       if (!mounted) return;
 
@@ -109,7 +111,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     try {
       final response = await _passwordResetService.verifyOtp(
-        _usernameController.text.trim(),
+        _emailController.text.trim(),
         otp,
       );
 
@@ -126,7 +128,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         context,
         MaterialPageRoute(
           builder: (_) =>
-              ResetPasswordPage(username: _usernameController.text.trim()),
+              ResetPasswordPage(identifier: _emailController.text.trim()),
         ),
       );
     } catch (e) {
@@ -227,7 +229,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: 10),
                   const Text(
-                    "Enter your username to receive a one-time password (OTP) to reset your account",
+                    "Enter your registered email to receive a one-time password (OTP) and reset your account",
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.black54, fontSize: 14),
                   ),
@@ -235,10 +237,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                   // Username Input
                   TextField(
-                    controller: _usernameController,
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.person_outline),
-                      hintText: "Username",
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      hintText: "Email address",
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

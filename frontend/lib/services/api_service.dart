@@ -3,16 +3,28 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
+import '../core/constants/api_constants.dart';
+
 class ApiService {
   static final String baseUrl = _resolveBaseUrl();
+  static Future<void> Function()? _unauthorizedHandler;
 
   static String _resolveBaseUrl() {
     const envBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
     if (envBaseUrl.isNotEmpty) return envBaseUrl;
 
-    if (kIsWeb) return 'http://localhost:5000';
-    if (Platform.isAndroid) return 'http://10.0.2.2:5000';
-    return 'http://localhost:5000';
+    const androidTarget = String.fromEnvironment(
+      'ANDROID_DEVICE_TARGET',
+      defaultValue: 'emulator',
+    );
+
+    if (kIsWeb) return ApiConstants.defaultWebBaseUrl;
+    if (Platform.isAndroid) {
+      return androidTarget.toLowerCase() == 'physical'
+          ? ApiConstants.defaultAndroidPhysicalDeviceBaseUrl
+          : ApiConstants.defaultAndroidEmulatorBaseUrl;
+    }
+    return ApiConstants.defaultDesktopBaseUrl;
   }
 
   // Token for authenticated requests
@@ -21,6 +33,10 @@ class ApiService {
   // Set the auth token after login
   static void setAuthToken(String? token) {
     _authToken = token;
+  }
+
+  static void setUnauthorizedHandler(Future<void> Function()? handler) {
+    _unauthorizedHandler = handler;
   }
 
   // Get the auth token
@@ -36,6 +52,10 @@ class ApiService {
     http.Response response,
     String fallbackMessage,
   ) {
+    if (_isUnauthorizedTokenResponse(response)) {
+      return Exception('Session expired. Please log in again.');
+    }
+
     try {
       final decoded = json.decode(response.body);
       if (decoded is Map<String, dynamic>) {
@@ -47,18 +67,82 @@ class ApiService {
     } catch (_) {
       // Ignore decode failures and fall back to status-based message.
     }
-    return Exception('$fallbackMessage: ${response.statusCode}');
+    final body = response.body.trim();
+    final preview = body.isEmpty
+        ? ''
+        : body.length > 160
+        ? '${body.substring(0, 160)}...'
+        : body;
+    final suffix = preview.isEmpty ? '' : ' | Response: $preview';
+    return Exception('$fallbackMessage: ${response.statusCode}$suffix');
+  }
+
+  bool _isUnauthorizedTokenResponse(http.Response response) {
+    if (response.statusCode != 401) return false;
+
+    try {
+      final decoded = json.decode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final message = (decoded['message'] ?? decoded['error'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        return message.contains('invalid or expired token') ||
+            message.contains('no token provided') ||
+            message.contains('invalid authorization format');
+      }
+    } catch (_) {
+      // Fall back to status code handling below.
+    }
+
+    return true;
+  }
+
+  Future<void> _handleUnauthorizedIfNeeded(http.Response response) async {
+    if (_isUnauthorizedTokenResponse(response) && _unauthorizedHandler != null) {
+      await _unauthorizedHandler!.call();
+    }
+  }
+
+  Exception _buildNetworkException(
+    Object error,
+    String endpoint,
+  ) {
+    if (error is http.ClientException) {
+      final message = error.message.toLowerCase();
+      if (message.contains('network is unreachable') ||
+          message.contains('failed host lookup') ||
+          message.contains('connection refused')) {
+        return Exception(
+          'Cannot reach the backend at $baseUrl$endpoint. '
+          'If you are using a real phone, start Flutter with '
+          '--dart-define=ANDROID_DEVICE_TARGET=physical '
+          'or --dart-define=API_BASE_URL=http://YOUR_PC_IP:5000. '
+          'Android emulator should use ${ApiConstants.defaultAndroidEmulatorBaseUrl}. '
+          'Physical device default is ${ApiConstants.defaultAndroidPhysicalDeviceBaseUrl}.',
+        );
+      }
+    }
+    return Exception(error.toString().replaceFirst('Exception: ', ''));
   }
 
   Future<dynamic> getRaw(String endpoint) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: _headers,
-    );
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw _buildHttpException(response, 'Failed to load data');
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: _headers,
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        await _handleUnauthorizedIfNeeded(response);
+        throw _buildHttpException(
+          response,
+          'Failed to load data from $endpoint',
+        );
+      }
+    } catch (error) {
+      throw _buildNetworkException(error, endpoint);
     }
   }
 
@@ -82,15 +166,23 @@ class ApiService {
     String endpoint,
     Map<String, dynamic> data,
   ) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: _headers,
-      body: json.encode(data),
-    );
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return json.decode(response.body);
-    } else {
-      throw _buildHttpException(response, 'Failed to post data');
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: _headers,
+        body: json.encode(data),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(response.body);
+      } else {
+        await _handleUnauthorizedIfNeeded(response);
+        throw _buildHttpException(
+          response,
+          'Failed to post data to $endpoint',
+        );
+      }
+    } catch (error) {
+      throw _buildNetworkException(error, endpoint);
     }
   }
 
@@ -98,15 +190,23 @@ class ApiService {
     String endpoint,
     Map<String, dynamic> data,
   ) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: _headers,
-      body: json.encode(data),
-    );
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return json.decode(response.body);
-    } else {
-      throw _buildHttpException(response, 'Failed to update data');
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: _headers,
+        body: json.encode(data),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(response.body);
+      } else {
+        await _handleUnauthorizedIfNeeded(response);
+        throw _buildHttpException(
+          response,
+          'Failed to update data at $endpoint',
+        );
+      }
+    } catch (error) {
+      throw _buildNetworkException(error, endpoint);
     }
   }
 }

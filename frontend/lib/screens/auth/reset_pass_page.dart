@@ -4,9 +4,9 @@ import '../../routes/app_routes.dart';
 import '../../services/password_reset_service.dart';
 
 class ResetPasswordPage extends StatefulWidget {
-  final String? username;
+  final String? identifier;
 
-  const ResetPasswordPage({super.key, this.username});
+  const ResetPasswordPage({super.key, this.identifier});
 
   @override
   State<ResetPasswordPage> createState() => _ResetPasswordPageState();
@@ -28,11 +28,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   }
 
   Future<void> _handleResetPassword() async {
-    final username = widget.username?.trim() ?? '';
-    if (username.isEmpty) {
+    final identifier = widget.identifier?.trim() ?? '';
+    if (identifier.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Missing username for password reset.'),
+          content: Text('Missing account email for password reset.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -66,7 +66,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
     try {
       final response = await _passwordResetService.resetPassword(
-        username,
+        identifier,
         _passwordController.text,
       );
 

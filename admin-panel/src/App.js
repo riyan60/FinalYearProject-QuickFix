@@ -33,6 +33,7 @@ const apiBaseCandidates = Array.from(
 
 const TAB_ENTITY_MAP = {
   Dashboard: null,
+  Verification: null,
   Users: 'users',
   Repairmen: 'repairmen',
   Services: 'services',
@@ -43,10 +44,12 @@ const TAB_ENTITY_MAP = {
   Settings: 'accounts',
   Accounts: 'accounts',
   Locations: 'locations',
+  Cities: 'cities',
 };
 
 const MENU_ITEMS = [
   { name: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+  { name: 'Verification', icon: <Shield size={20} /> },
   { name: 'Users', icon: <Users size={20} /> },
   { name: 'Repairmen', icon: <Wrench size={20} /> },
   { name: 'Services', icon: <Settings size={20} /> },
@@ -55,17 +58,75 @@ const MENU_ITEMS = [
   { name: 'Reviews', icon: <Star size={20} /> },
   { name: 'Accounts', icon: <Shield size={20} /> },
   { name: 'Locations', icon: <MapPin size={20} /> },
+  { name: 'Cities', icon: <MapPin size={20} /> },
   { name: 'Reports', icon: <BarChart3 size={20} /> },
   { name: 'Settings', icon: <Settings size={20} /> },
 ];
 
+const ENTITY_TEMPLATES = {
+  services: {
+    service_name: '',
+    description: '',
+    base_price: 0,
+    category: 'mechanic',
+    is_active: true,
+  },
+  users: {
+    name: '',
+    phone: '',
+    address: '',
+    account_id: '',
+  },
+  repairmen: {
+    name: '',
+    phone: '',
+    skills: [],
+    availability_status: 'available',
+    account_id: '',
+  },
+  accounts: {
+    username: '',
+    email: '',
+    role: 'admin',
+    is_active: true,
+  },
+  locations: {
+    repairman_id: '',
+    latitude: 0,
+    longitude: 0,
+  },
+  cities: {
+    name: '',
+    state: '',
+    country: 'India',
+    is_active: true,
+  },
+};
+
+const ENTITY_HELP_TEXT = {
+  services: 'Use service_name, description, base_price, category, and is_active. Categories like mechanic, plumber, electrician, cleaning, carpenter, and ac repair show best in the app.',
+  cities: 'Add one city per record. Users and repairmen will see active cities in their signup dropdown.',
+};
+
+const getAuthToken = () =>
+  window.localStorage.getItem('adminToken') || window.localStorage.getItem('token') || '';
+
 const fetchFromApi = async (path, options = {}) => {
   let lastError = null;
   const attempts = [];
+  const token = getAuthToken();
+  const headers = new Headers(options.headers || {});
+
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   for (const base of apiBaseCandidates) {
     try {
-      const response = await fetch(`${base}${path}`, options);
+      const response = await fetch(`${base}${path}`, {
+        ...options,
+        headers,
+      });
       if (!response.ok) {
         const message = `Failed ${response.status} for ${base}${path}`;
         attempts.push(message);
@@ -117,6 +178,7 @@ const Dashboard = () => {
   const [totals, setTotals] = useState({});
   const [activity, setActivity] = useState([]);
   const [tableItems, setTableItems] = useState([]);
+  const [verificationItems, setVerificationItems] = useState([]);
   const [hasCrudApi, setHasCrudApi] = useState(true);
 
   const [isStatsLoading, setIsStatsLoading] = useState(true);
@@ -125,6 +187,7 @@ const Dashboard = () => {
   const [statsError, setStatsError] = useState('');
   const [activityError, setActivityError] = useState('');
   const [tableError, setTableError] = useState('');
+  const [verificationError, setVerificationError] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('create');
@@ -133,6 +196,8 @@ const Dashboard = () => {
   const [jsonInput, setJsonInput] = useState('{}');
   const [modalError, setModalError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isVerificationLoading, setIsVerificationLoading] = useState(false);
+  const [reviewState, setReviewState] = useState({});
 
   const activeEntity = TAB_ENTITY_MAP[activeTab];
 
@@ -208,6 +273,19 @@ const Dashboard = () => {
     }
   };
 
+  const loadVerifications = async () => {
+    try {
+      setIsVerificationLoading(true);
+      setVerificationError('');
+      const data = await fetchFromApi('/admin/verifications');
+      setVerificationItems(Array.isArray(data?.items) ? data.items : []);
+    } catch (error) {
+      setVerificationError(`Unable to load verification queue. ${error.message}`);
+    } finally {
+      setIsVerificationLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadSummary();
     loadDashboardActivity();
@@ -215,15 +293,53 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (activeTab === 'Dashboard') return;
+    if (activeTab === 'Verification') {
+      loadVerifications();
+      return;
+    }
     loadEntities(activeEntity, searchTerm);
   }, [activeTab]);
+
+  const handleReviewVerification = async (repairmanId, decision) => {
+    const rejectionReason =
+      decision === 'reject'
+        ? window.prompt('Enter rejection reason for this verification:', '') || ''
+        : '';
+
+    if (decision === 'reject' && !rejectionReason.trim()) {
+      return;
+    }
+
+    try {
+      setReviewState((current) => ({ ...current, [repairmanId]: decision }));
+      await fetchFromApi(`/admin/verifications/${repairmanId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision,
+          rejection_reason: rejectionReason,
+        }),
+      });
+      await loadVerifications();
+      await loadSummary();
+      await loadDashboardActivity();
+    } catch (error) {
+      setVerificationError(`Unable to review verification. ${error.message}`);
+    } finally {
+      setReviewState((current) => {
+        const next = { ...current };
+        delete next[repairmanId];
+        return next;
+      });
+    }
+  };
 
   const openCreateModal = () => {
     if (!activeEntity || !hasCrudApi) return;
     setModalMode('create');
     setModalTitle(`Create ${activeTab} Record`);
     setEditingId('');
-    setJsonInput('{}');
+    setJsonInput(JSON.stringify(ENTITY_TEMPLATES[activeEntity] || {}, null, 2));
     setModalError('');
     setModalOpen(true);
   };
@@ -370,13 +486,196 @@ const Dashboard = () => {
     </>
   );
 
+  const renderVerificationPage = () => (
+    <>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-700">Repairman Verification Queue</h3>
+          <p className="text-sm text-gray-500">
+            Review submitted identity details, document links, selfie links, and approval status.
+          </p>
+        </div>
+        <button
+          onClick={loadVerifications}
+          className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+        >
+          <RefreshCcw size={14} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {isVerificationLoading ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center text-gray-400">
+            Loading verification queue...
+          </div>
+        ) : verificationError ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-red-500">
+            {verificationError}
+          </div>
+        ) : verificationItems.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center text-gray-400">
+            No verification submissions found.
+          </div>
+        ) : (
+          verificationItems.map((item) => {
+            const profile = item.verification_profile || {};
+            const documents = item.verification_documents || {};
+            const isBusy = Boolean(reviewState[item.id]);
+
+            return (
+              <div
+                key={item.id}
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-xl font-semibold text-gray-800">
+                        {item.name || 'Repairman'}
+                      </h3>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          item.status === 'verified'
+                            ? 'bg-green-100 text-green-700'
+                            : item.status === 'rejected'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-orange-100 text-orange-700'
+                        }`}
+                      >
+                        {String(item.status || 'unverified').replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500">
+                      {item.specialization || profile.specialization || 'General repair'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {item.phone || profile.phone || 'No phone'} | {item.city || profile.city || 'No city'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Submitted: {item.submitted_at || 'Not submitted'}
+                    </p>
+                    {item.rejection_reason ? (
+                      <p className="text-sm text-red-600 mt-2">
+                        Rejection reason: {item.rejection_reason}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleReviewVerification(item.id, 'under_review')}
+                      disabled={isBusy}
+                      className="px-3 py-2 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 text-sm disabled:opacity-60"
+                    >
+                      {reviewState[item.id] === 'under_review' ? 'Saving...' : 'Mark Review'}
+                    </button>
+                    <button
+                      onClick={() => handleReviewVerification(item.id, 'approve')}
+                      disabled={isBusy}
+                      className="px-3 py-2 rounded-lg border border-green-200 text-green-700 hover:bg-green-50 text-sm disabled:opacity-60"
+                    >
+                      {reviewState[item.id] === 'approve' ? 'Approving...' : 'Approve'}
+                    </button>
+                    <button
+                      onClick={() => handleReviewVerification(item.id, 'reject')}
+                      disabled={isBusy}
+                      className="px-3 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 text-sm disabled:opacity-60"
+                    >
+                      {reviewState[item.id] === 'reject' ? 'Rejecting...' : 'Reject'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                  <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Identity</h4>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <p>Full name: {profile.full_name || '-'}</p>
+                      <p>DOB: {profile.date_of_birth || '-'}</p>
+                      <p>ID type: {documents.id_type || '-'}</p>
+                      <p>ID last 4: {documents.id_last4 || '-'}</p>
+                      <p>DigiLocker ref: {documents.digilocker_reference || '-'}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Work Details</h4>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <p>Specialization: {profile.specialization || '-'}</p>
+                      <p>Experience: {normalizeDisplayValue(profile.experience_years)}</p>
+                      <p>Address: {profile.address || '-'}</p>
+                      <p>Notes: {profile.notes || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div className="rounded-xl bg-blue-50 border border-blue-100 p-4">
+                    <h4 className="text-sm font-semibold text-blue-900 mb-3">Submitted Links</h4>
+                    <div className="space-y-2 text-sm">
+                      <p>
+                        ID proof:{' '}
+                        {documents.id_proof_url ? (
+                          <a className="text-blue-700 underline break-all" href={documents.id_proof_url} target="_blank" rel="noreferrer">
+                            {documents.id_proof_url}
+                          </a>
+                        ) : '-'}
+                      </p>
+                      <p>
+                        Address proof:{' '}
+                        {documents.address_proof_url ? (
+                          <a className="text-blue-700 underline break-all" href={documents.address_proof_url} target="_blank" rel="noreferrer">
+                            {documents.address_proof_url}
+                          </a>
+                        ) : '-'}
+                      </p>
+                      <p>
+                        Skill certificate:{' '}
+                        {documents.skill_certificate_url ? (
+                          <a className="text-blue-700 underline break-all" href={documents.skill_certificate_url} target="_blank" rel="noreferrer">
+                            {documents.skill_certificate_url}
+                          </a>
+                        ) : '-'}
+                      </p>
+                      <p>
+                        Selfie:{' '}
+                        {documents.selfie_url ? (
+                          <a className="text-blue-700 underline break-all" href={documents.selfie_url} target="_blank" rel="noreferrer">
+                            {documents.selfie_url}
+                          </a>
+                        ) : '-'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Review Notes</h4>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <p>Reviewed at: {item.reviewed_at || '-'}</p>
+                      <p>Current status: {item.status || '-'}</p>
+                      <p>Verified: {item.is_verified ? 'Yes' : 'No'}</p>
+                      <p>Rejection reason: {item.rejection_reason || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-[#1e3a8a] text-white transition-all duration-300 flex flex-col`}>
         <div className="p-6 flex items-center gap-3">
-          <div className="bg-orange-500 p-2 rounded-lg">
-            <Wrench size={24} className="text-white" />
-          </div>
+          <img
+            src="/logo.jpg"
+            alt="QuickFix logo"
+            className="h-10 w-10 rounded-lg object-cover border border-white/20 bg-white"
+          />
           {isSidebarOpen && <span className="text-xl font-bold tracking-tight">QuickFix</span>}
         </div>
 
@@ -413,15 +712,21 @@ const Dashboard = () => {
               <p className="text-sm font-semibold text-gray-700">Admin Control Center</p>
               <p className="text-xs text-green-500 font-medium">Online</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-orange-100 border-2 border-orange-500 flex items-center justify-center text-orange-600 font-bold">
-              AD
-            </div>
+            <img
+              src="/logo.jpg"
+              alt="QuickFix logo"
+              className="w-10 h-10 rounded-full object-cover border-2 border-orange-500 bg-white"
+            />
           </div>
         </header>
 
         <div className="p-8 overflow-y-auto">
           <h1 className="text-2xl font-bold text-gray-800 mb-6">{activeTab}</h1>
-          {activeTab === 'Dashboard' ? renderDashboard() : renderEntityPage()}
+          {activeTab === 'Dashboard'
+            ? renderDashboard()
+            : activeTab === 'Verification'
+            ? renderVerificationPage()
+            : renderEntityPage()}
         </div>
       </main>
 
@@ -438,6 +743,9 @@ const Dashboard = () => {
               <p className="text-xs text-gray-500 mb-2">
                 Use JSON payload. This directly writes to Firestore for admin-level control.
               </p>
+              {ENTITY_HELP_TEXT[activeEntity] ? (
+                <p className="text-xs text-blue-600 mb-3">{ENTITY_HELP_TEXT[activeEntity]}</p>
+              ) : null}
               <textarea
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}

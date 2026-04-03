@@ -12,4 +12,11 @@ router.post(
   reviewController.addReview
 );
 
+router.get(
+  "/me",
+  authMiddleware,
+  allowRoles("repairman"),
+  reviewController.getMyReviews
+);
+
 module.exports = router;

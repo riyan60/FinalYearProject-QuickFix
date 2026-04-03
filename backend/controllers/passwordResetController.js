@@ -1,17 +1,27 @@
 const { db } = require("../firebase");
 const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer");
+const env = require("../config/env");
 
 const OTP_LEN = 4;
-const OTP_EXP_MIN = Number(process.env.OTP_EXP_MIN || 10);
-const RESEND_COOLDOWN_SEC = Number(process.env.OTP_RESEND_COOLDOWN_SEC || 45);
+const OTP_EXP_MIN = env.otpExpMin;
+const RESEND_COOLDOWN_SEC = env.otpResendCooldownSec;
 const MAX_ATTEMPTS = 5;
 const MAX_RESENDS = 5;
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-});
+function getTransporter() {
+  const emailUser = env.emailUser();
+  const emailPass = env.emailPass();
+
+  if (!emailUser || !emailPass) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: emailUser, pass: emailPass },
+  });
+}
 
 const genOtp = () => String(Math.floor(1000 + Math.random() * 9000));
 const addMinutes = (min) => new Date(Date.now() + min * 60 * 1000);
@@ -38,8 +48,13 @@ const getAccountByUsername = async (username) => {
 };
 
 const sendEmailOtp = async (toEmail, otp) => {
+  const transporter = getTransporter();
+  if (!transporter) {
+    throw new Error("Password reset email is not configured. Set EMAIL_USER and EMAIL_PASS.");
+  }
+
   await transporter.sendMail({
-    from: process.env.EMAIL_USER,
+    from: env.emailUser(),
     to: toEmail,
     subject: "QuickFix Password Reset OTP",
     text: `Your OTP is ${otp}. It expires in ${OTP_EXP_MIN} minutes.`,

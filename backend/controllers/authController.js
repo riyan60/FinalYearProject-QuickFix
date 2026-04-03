@@ -1,6 +1,7 @@
 const { db } = require("../firebase");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const env = require("../config/env");
 
 // REGISTER
 exports.register = async (req, res) => {
@@ -13,10 +14,14 @@ exports.register = async (req, res) => {
       name,
       phone,
       address,
+      city,
       latitude,
       longitude,
       experience,
       bio,
+      skills,
+      hourlyRate,
+      hourly_rate,
     } = req.body;
 
     if (!username || !email || !password || !role || !name || !phone) {
@@ -58,6 +63,7 @@ exports.register = async (req, res) => {
         name,
         phone,
         address: address || "",
+        city: city || "",
         latitude: latitude ?? null,
         longitude: longitude ?? null,
         created_at: new Date(),
@@ -65,19 +71,41 @@ exports.register = async (req, res) => {
     }
 
     if (role === "repairman") {
+      const normalizedSkills = Array.isArray(skills)
+        ? skills.map((skill) => String(skill).trim()).filter(Boolean)
+        : String(skills || "")
+            .split(",")
+            .map((skill) => skill.trim())
+            .filter(Boolean);
+      const normalizedHourlyRate = Number(hourlyRate ?? hourly_rate ?? 0);
+
       await db.collection("repairmen").doc(accountId).set({
         account_id: accountId,
         name,
         phone,
         address: address || "",
+        city: city || "",
         latitude: latitude ?? null,
         longitude: longitude ?? null,
         experience: Number(experience || 0),
+        skills: normalizedSkills,
+        specialization: normalizedSkills[0] || "",
+        hourly_rate: Number.isFinite(normalizedHourlyRate)
+          ? normalizedHourlyRate
+          : 0,
         availability_status: "available",
+        emergency_service_enabled: false,
         rating: 0,
         bio: bio || "",
         profile_pic: "",
         is_verified: false,
+        verification_status: "unverified",
+        verification_submitted_at: null,
+        verification_reviewed_at: null,
+        verification_reviewed_by: "",
+        verification_rejection_reason: "",
+        verification_profile: {},
+        verification_documents: {},
         created_at: new Date(),
       });
     }
@@ -109,6 +137,7 @@ exports.login = async (req, res) => {
 
     const doc = snap.docs[0];
     const acc = doc.data();
+    let profile = null;
 
     if (acc.is_active === false) {
       return res.status(403).json({ message: "Account disabled" });
@@ -121,9 +150,21 @@ exports.login = async (req, res) => {
 
     await db.collection("accounts").doc(doc.id).update({ last_login: new Date() });
 
+    if (acc.role === "user") {
+      const profileDoc = await db.collection("users").doc(doc.id).get();
+      if (profileDoc.exists) {
+        profile = { account_id: doc.id, ...profileDoc.data() };
+      }
+    } else if (acc.role === "repairman") {
+      const profileDoc = await db.collection("repairmen").doc(doc.id).get();
+      if (profileDoc.exists) {
+        profile = { account_id: doc.id, ...profileDoc.data() };
+      }
+    }
+
     const token = jwt.sign(
       { userId: doc.id, role: acc.role },
-      process.env.JWT_SECRET,
+      env.jwtSecret(),
       { expiresIn: "7d" }
     );
 
@@ -132,6 +173,65 @@ exports.login = async (req, res) => {
       token,
       role: acc.role,
       accountId: doc.id,
+      profile,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getCurrentProfile = async (req, res) => {
+  try {
+    const { userId, role } = req.user;
+
+    const accountDoc = await db.collection("accounts").doc(userId).get();
+    if (!accountDoc.exists) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    let profile = null;
+    if (role === "user") {
+      const profileDoc = await db.collection("users").doc(userId).get();
+      if (profileDoc.exists) {
+        profile = { account_id: userId, ...profileDoc.data() };
+      }
+    } else if (role === "repairman") {
+      const profileDoc = await db.collection("repairmen").doc(userId).get();
+      if (profileDoc.exists) {
+        profile = { account_id: userId, ...profileDoc.data() };
+      }
+    }
+
+    return res.json({
+      accountId: userId,
+      role,
+      profile,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.updateCurrentProfile = async (req, res) => {
+  try {
+    const { userId, role } = req.user;
+    const { city, latitude, longitude } = req.body;
+
+    const update = { updated_at: new Date() };
+    if (city !== undefined) update.city = String(city || "").trim();
+    if (latitude !== undefined) update.latitude = Number(latitude);
+    if (longitude !== undefined) update.longitude = Number(longitude);
+
+    const collection = role === "repairman" ? "repairmen" : "users";
+    await db.collection(collection).doc(userId).set(update, { merge: true });
+
+    const profileDoc = await db.collection(collection).doc(userId).get();
+
+    return res.json({
+      message: "Profile updated",
+      profile: profileDoc.exists
+        ? { account_id: userId, ...profileDoc.data() }
+        : null,
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });

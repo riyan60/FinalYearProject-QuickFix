@@ -1,24 +1,91 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../core/utils/money_utils.dart';
+import '../../../providers/notification_provider.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/location_service.dart';
+import '../../../widgets/notification_bell_button.dart';
+import '../../auth/login_page.dart';
 import '../../location/location_picker_screen.dart';
-import '../../user/history/booking_history_page.dart';
-import '../../user/home/user_home_page.dart';
-import '../../user/profile/user_profile_page.dart';
+import '../../shared/feedback_contact_page.dart';
+import '../dashboard/repairman_home_page.dart';
+import '../earnings/earnings_page.dart';
+import '../jobs/job_requests_page.dart';
+import 'repairman_services_page.dart';
+import 'repairman_verification_page.dart';
 
-class RepairmanProfilePage extends StatelessWidget {
+class InfoPage extends StatelessWidget {
+  final String title;
+  final String body;
+
+  const InfoPage({super.key, required this.title, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        backgroundColor: const Color(0xFF4A90E2),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            body,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RepairmanProfilePage extends StatefulWidget {
   final String name;
-  final String rating;
-  final Map<String, dynamic>? profileData;
+  final double rating;
+  final Map<String, dynamic> profileData;
 
   const RepairmanProfilePage({
     super.key,
     required this.name,
     required this.rating,
-    this.profileData,
+    required this.profileData,
   });
 
-  String _value(List<String> keys, String fallback) {
-    final data = profileData ?? const <String, dynamic>{};
+  @override
+  State<RepairmanProfilePage> createState() => _RepairmanProfilePageState();
+}
+
+class _RepairmanProfilePageState extends State<RepairmanProfilePage> {
+  Timer? _locationTimer;
+  bool _isSharingLocation = false;
+
+  Map<String, dynamic> get _profileData {
+    final session = AuthService.currentSession ?? <String, dynamic>{};
+    return {...session, ...widget.profileData};
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _startLocationSharing();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<NotificationProvider>().sync();
+    });
+  }
+
+  @override
+  void dispose() {
+    _locationTimer?.cancel();
+    super.dispose();
+  }
+
+  String _value(Map<String, dynamic> data, List<String> keys, String fallback) {
     for (final key in keys) {
       final value = data[key];
       if (value != null && value.toString().trim().isNotEmpty) {
@@ -28,192 +95,183 @@ class RepairmanProfilePage extends StatelessWidget {
     return fallback;
   }
 
+  void _openInfoPage(BuildContext context, String title, String body) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InfoPage(title: title, body: body),
+      ),
+    );
+  }
+
+  Future<void> _startLocationSharing() async {
+    try {
+      final position = await LocationService.getCurrentPosition();
+      if (position == null) return;
+
+      await LocationService.updateRepairmanLocation(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isSharingLocation = true;
+      });
+
+      _locationTimer = Timer.periodic(const Duration(seconds: 5), (
+        timer,
+      ) async {
+        final newPosition = await LocationService.getCurrentPosition();
+        if (newPosition == null) return;
+        await LocationService.updateRepairmanLocation(
+          newPosition.latitude,
+          newPosition.longitude,
+        );
+      });
+    } catch (e) {
+      debugPrint('Location sharing error: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final rateLabel = _value(
-      ['hourlyRate', 'hourly_rate', 'custom_price'],
-      'Rate unavailable',
+    final data = _profileData;
+    final displayName = _value(
+      data,
+      ['name', 'username', 'identity'],
+      widget.name,
     );
-    final availability = _value(
-      ['availability_status'],
-      'Availability not provided',
+    final secondaryText = _value(
+      data,
+      ['email', 'identity', 'accountId'],
+      'Signed-in account',
     );
-    final bio = _value(
-      ['bio'],
-      'No profile description is available for this repairman yet.',
+    final tertiaryText = _value(
+      data,
+      ['phone', 'specialization', 'role'],
+      'Repairman',
     );
-    final experience = _value(['experience'], 'Not provided');
-    final address = _value(['address'], 'Not provided');
-    final verified = _value(['is_verified'], 'false').toLowerCase() == 'true'
-        ? 'Verified'
-        : 'Not verified';
+    final ratingText = widget.rating.toStringAsFixed(1);
+    final verificationStatus = _value(
+      data,
+      ['verification_status'],
+      data['is_verified'] == true ? 'verified' : 'unverified',
+    );
+    final hourlyRate = _value(
+      data,
+      ['hourly_rate', 'hourlyRate', 'custom_price'],
+      'Unavailable',
+    );
+    final experience = _value(data, ['experience'], 'Not provided');
+    final address = _value(data, ['address', 'city'], 'Not provided');
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color(0xFF3B82F6),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(30),
-                  bottomRight: Radius.circular(30),
-                ),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        backgroundColor: const Color(0xFF4A90E2),
+        actions: [
+          NotificationBellButton(
+            onTap: () {
+              Navigator.pushNamed(context, '/notifications');
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.attach_money, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const EarningsScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+      backgroundColor: const Color(0xFFF1F5FB),
+      body: Column(
+        children: [
+          Container(
+            height: 220,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1E5CC8), Color(0xFF2B86D9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    Align(
-                      alignment: Alignment.topLeft,
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back_ios_new,
-                          color: Colors.white,
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ),
-                    const CircleAvatar(
-                      radius: 50,
-                      backgroundColor: Color(0xFFE0F2FE),
-                      child: Icon(
-                        Icons.person,
-                        size: 60,
-                        color: Color(0xFF3B82F6),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          color: Color(0xFF3B82F6),
-                          size: 18,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF3B82F6),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            rateLabel,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.star, color: Colors.orange, size: 16),
-                        Icon(Icons.star, color: Colors.orange, size: 16),
-                        Icon(Icons.star, color: Colors.orange, size: 16),
-                        Icon(Icons.star, color: Colors.orange, size: 16),
-                        Icon(Icons.star_half, color: Colors.orange, size: 16),
-                      ],
-                    ),
-                    Text(
-                      rating,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      availability,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(34),
+                bottomRight: Radius.circular(34),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            child: SafeArea(
+              child: Stack(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE5E7EB),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.black26),
-                    ),
-                    child: Text(
-                      bio,
-                      style: const TextStyle(fontSize: 14, height: 1.4),
+                  Positioned(
+                    right: -28,
+                    top: -12,
+                    child: Container(
+                      width: 118,
+                      height: 118,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Work Details',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new,
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(color: Colors.black12),
                     ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Center(
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _detailRow(
-                          Icons.work_history_outlined,
-                          'Experience',
-                          experience,
-                        ),
-                        _detailRow(
-                          Icons.location_on_outlined,
-                          'Address',
-                          address,
-                        ),
-                        _detailRow(
-                          Icons.verified_outlined,
-                          'Verification',
-                          verified,
+                        Container(
+                          width: 88,
+                          height: 88,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          child: const Icon(
+                            Icons.engineering_rounded,
+                            size: 50,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const UserHome(),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF3B82F6),
-                            minimumSize: const Size(150, 40),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
+                        Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
                           ),
-                          child: const Text(
-                            'Book Now',
-                            style: TextStyle(color: Colors.white),
+                        ),
+                        Text(
+                          secondaryText,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        Text(
+                          tertiaryText,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            'Rating $ratingText • ${verificationStatus.replaceAll('_', ' ')}',
+                            style: const TextStyle(color: Colors.white),
                           ),
                         ),
                       ],
@@ -222,40 +280,283 @@ class RepairmanProfilePage extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              children: [
+                Center(
+                  child: ElevatedButton(
+                    onPressed: () => _openInfoPage(
+                      context,
+                      'Account details',
+                      'Rating: $ratingText\nHourly rate: ${MoneyUtils.format(hourlyRate)}\nExperience: $experience year(s)\nAddress: $address',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E5CC8),
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      minimumSize: const Size(210, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                    ),
+                    child: const Text(
+                      'Account details',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildQuickAction(
+                        icon: Icons.miscellaneous_services_outlined,
+                        label: 'Services',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RepairmanServicesPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildQuickAction(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Jobs',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const JobRequestsPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildQuickAction(
+                        icon: Icons.attach_money_rounded,
+                        label: 'Earnings',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const EarningsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                _buildSection('Account Info', [
+                  _buildListTile(
+                    context,
+                    Icons.badge_outlined,
+                    'Account',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Account',
+                      'Account ID: ${_value(data, ['accountId', 'account_id'], 'Unavailable')}\nRole: ${_value(data, ['role'], 'repairman')}\nLogin: $secondaryText',
+                    ),
+                  ),
+                  _buildListTile(
+                    context,
+                    _isSharingLocation
+                        ? Icons.location_on_outlined
+                        : Icons.location_off_outlined,
+                    'Live location',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Live location',
+                      _isSharingLocation
+                          ? 'Live location sharing is active for this repairman account.'
+                          : 'Live location sharing is currently off. Enable device location permission to share updates.',
+                    ),
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.lock,
+                    'Verification',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const RepairmanVerificationPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.notifications_none,
+                    'Notifications',
+                    onTap: () {
+                      Navigator.pushNamed(context, '/notifications');
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.privacy_tip_outlined,
+                    'Privacy',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Privacy',
+                      'Authenticated requests use the current session token. Sensitive account fields are not editable from this screen yet.',
+                    ),
+                  ),
+                ]),
+                _buildSection('Work & Support', [
+                  _buildListTile(
+                    context,
+                    Icons.miscellaneous_services_outlined,
+                    'My Services',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const RepairmanServicesPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.calendar_today_outlined,
+                    'My Jobs',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const JobRequestsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.attach_money,
+                    'Earnings',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const EarningsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.feedback_outlined,
+                    'Feedback & Contact',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FeedbackContactPage(
+                            initialFeedbackType: 'repairman',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.help,
+                    'Help & Support',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Help & Support',
+                      'For repairman issues, keep the booking ID and time of the issue so the backend records can be checked quickly.',
+                    ),
+                  ),
+                ]),
+                _buildSection('Actions', [
+                  _buildListTile(
+                    context,
+                    Icons.flag,
+                    'Report a problem',
+                    onTap: () => _openInfoPage(
+                      context,
+                      'Report a problem',
+                      'If something fails, capture the screen, the booking ID, and the time so the repairman workflow can be checked.',
+                    ),
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.person_add,
+                    'Switch account',
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildListTile(
+                    context,
+                    Icons.logout,
+                    'Log out',
+                    onTap: () async {
+                      await AuthService().logout();
+                      if (!context.mounted) return;
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 3,
+        type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.orange,
-        unselectedItemColor: Colors.orange.withOpacity(0.5),
-        showUnselectedLabels: true,
+        unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Booking'),
-          BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Map'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_today_outlined),
+            label: 'Booking',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.location_on_outlined),
+            label: 'Map',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         onTap: (index) {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const UserHome()),
+              MaterialPageRoute(builder: (_) => const DashboardPage()),
             );
           } else if (index == 1) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const BookingHistoryPage()),
+              MaterialPageRoute(builder: (_) => const JobRequestsPage()),
             );
           } else if (index == 2) {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const LocationPickerScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const UserProfilePage()),
             );
           }
         },
@@ -263,38 +564,108 @@ class RepairmanProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _detailRow(IconData icon, String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.transparent,
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black54),
+  Widget _buildSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 6, bottom: 10, top: 16),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5EAF2)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
               ),
-              child: Center(child: Icon(icon, size: 20, color: Colors.black87)),
-            ),
+            ],
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE4EAF3)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: const Color(0xFF2E6BE6)),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
             ),
-          ),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildListTile(
+    BuildContext context,
+    IconData icon,
+    String title, {
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: const Color(0xFFEAF0FB),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          icon,
+          color: const Color(0xFF2459C7),
+          size: 20,
+        ),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF0F172A),
+        ),
+      ),
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        color: Color(0xFF94A3B8),
+      ),
+      onTap: onTap,
     );
   }
 }

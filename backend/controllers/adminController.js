@@ -12,6 +12,7 @@ const COLLECTION_MAP = {
   settings: "accounts",
   accounts: "accounts",
   locations: "locations",
+  cities: "cities",
 };
 
 const ALLOWED_COLLECTIONS = new Set([
@@ -23,6 +24,7 @@ const ALLOWED_COLLECTIONS = new Set([
   "payments",
   "reviews",
   "locations",
+  "cities",
 ]);
 
 const resolveCollection = (entity = "") => {
@@ -30,6 +32,58 @@ const resolveCollection = (entity = "") => {
   const collection = COLLECTION_MAP[key] || key;
   if (!ALLOWED_COLLECTIONS.has(collection)) return null;
   return collection;
+};
+
+const coerceBoolean = (value, fallback) => {
+  if (value === undefined) return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return Boolean(value);
+};
+
+const coerceNumber = (value, fallback = 0) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeServicePayload = (payload = {}, isCreate = false) => {
+  const normalized = { ...payload };
+
+  const serviceName = payload.service_name ?? payload.name;
+  if (serviceName !== undefined) normalized.service_name = String(serviceName).trim();
+
+  const description = payload.description;
+  if (description !== undefined) normalized.description = String(description).trim();
+
+  const category = payload.category;
+  if (category !== undefined) normalized.category = String(category).trim();
+
+  const basePrice = payload.base_price ?? payload.price;
+  if (basePrice !== undefined) normalized.base_price = coerceNumber(basePrice, 0);
+
+  normalized.is_active = coerceBoolean(payload.is_active, isCreate ? true : payload.is_active);
+
+  delete normalized.name;
+  delete normalized.price;
+
+  return normalized;
+};
+
+const normalizeEntityPayload = (collection, payload = {}, isCreate = false) => {
+  if (collection === "services") return normalizeServicePayload(payload, isCreate);
+  if (collection === "cities") {
+    return {
+      ...payload,
+      name: String(payload.name || payload.city || "").trim(),
+      is_active: coerceBoolean(payload.is_active, isCreate ? true : payload.is_active),
+    };
+  }
+  return { ...payload };
 };
 
 const toMillis = (value) => {
@@ -58,26 +112,71 @@ const serialize = (value) => {
   return value;
 };
 
+const enrichBooking = async (row) => {
+  if (!row || !row.id) return row;
+
+  const enriched = { ...row };
+  const [userDoc, repairmanDoc, serviceDoc] = await Promise.all([
+    row.user_id ? db.collection("users").doc(String(row.user_id)).get() : null,
+    row.repairman_id ? db.collection("repairmen").doc(String(row.repairman_id)).get() : null,
+    row.service_id ? db.collection("services").doc(String(row.service_id)).get() : null,
+  ]);
+
+  if (userDoc && userDoc.exists) {
+    const user = userDoc.data() || {};
+    enriched.user_name = user.name || enriched.user_name || "";
+  }
+
+  if (repairmanDoc && repairmanDoc.exists) {
+    const repairman = repairmanDoc.data() || {};
+    enriched.repairman_name =
+      enriched.repairman_name || repairman.name || enriched.repairman_name || "";
+    enriched.specialty =
+      enriched.specialty || repairman.specialization || enriched.specialty || "";
+  }
+
+  if (serviceDoc && serviceDoc.exists) {
+    const service = serviceDoc.data() || {};
+    enriched.service_name = service.service_name || enriched.service_name || "";
+  }
+
+  return enriched;
+};
+
 const getPrimaryText = (collection, row) => {
   if (collection === "users" || collection === "repairmen") return row.name || row.account_id || row.id;
   if (collection === "services") return row.service_name || row.id;
-  if (collection === "bookings") return `Booking ${row.id}`;
+  if (collection === "bookings") {
+    const label =
+      row.booking_type === "direct_repairman"
+        ? row.specialty || "Direct repairman booking"
+        : row.service_name || row.service_id || "Service booking";
+    return `Booking ${row.id} • ${label}`;
+  }
   if (collection === "payments") return row.transaction_id || row.booking_id || row.id;
   if (collection === "reviews") return `Booking ${row.booking_id || "-"}`;
   if (collection === "accounts") return row.username || row.email || row.id;
   if (collection === "locations") return row.repairman_id || row.id;
+  if (collection === "cities") return row.name || row.city || row.id;
   return row.id;
 };
 
 const getSecondaryText = (collection, row) => {
   if (collection === "users" || collection === "repairmen") return row.phone || row.address || "No details";
   if (collection === "services") return row.description || "No description";
-  if (collection === "bookings")
-    return `Service: ${row.service_id || "-"} | Repairman: ${row.repairman_id || "-"}`;
+  if (collection === "bookings") {
+    const isDirectBooking = row.booking_type === "direct_repairman";
+    const bookingLabel = isDirectBooking
+      ? row.specialty || row.booking_mode || "Direct repairman booking"
+      : row.service_name || row.service_id || "-";
+    const repairmanLabel = row.repairman_name || row.repairman_id || "-";
+    return `${isDirectBooking ? "Booking" : "Service"}: ${bookingLabel} | Repairman: ${repairmanLabel}`;
+  }
   if (collection === "payments") return row.payment_method || "Unknown";
   if (collection === "reviews") return row.comment || "No comment";
   if (collection === "accounts") return row.email || row.role || "No details";
   if (collection === "locations") return `${row.latitude || "-"}, ${row.longitude || "-"}`;
+  if (collection === "cities") return row.state || row.country || "City";
   return "No details";
 };
 
@@ -88,6 +187,7 @@ const getStatusText = (collection, row) => {
   if (collection === "payments") return row.payment_status || "unknown";
   if (collection === "reviews") return `${toAmount(row.rating)}/5`;
   if (collection === "accounts") return row.is_active === false ? "disabled" : "active";
+  if (collection === "cities") return row.is_active === false ? "inactive" : "active";
   return "active";
 };
 
@@ -107,11 +207,11 @@ const buildActivityRows = (collection, docs) =>
           : collection === "bookings"
           ? toAmount(row.total_amount)
           : undefined,
-    }));
+      }));
 
 exports.getDashboardSummary = async (req, res) => {
   try {
-    const [accountsSnap, usersSnap, repairmenSnap, servicesSnap, bookingsSnap, paymentsSnap, reviewsSnap] =
+    const [accountsSnap, usersSnap, repairmenSnap, servicesSnap, bookingsSnap, paymentsSnap, reviewsSnap, citiesSnap] =
       await Promise.all([
         db.collection("accounts").get(),
         db.collection("users").get(),
@@ -120,6 +220,7 @@ exports.getDashboardSummary = async (req, res) => {
         db.collection("bookings").get(),
         db.collection("payments").get(),
         db.collection("reviews").get(),
+        db.collection("cities").get(),
       ]);
 
     const accounts = accountsSnap.docs.map((doc) => doc.data());
@@ -156,6 +257,7 @@ exports.getDashboardSummary = async (req, res) => {
         bookings: bookingsSnap.size,
         payments: paymentsSnap.size,
         reviews: reviewsSnap.size,
+        cities: citiesSnap ? citiesSnap.size : 0,
       },
     });
   } catch (error) {
@@ -168,7 +270,10 @@ exports.getRecentActivity = async (req, res) => {
     const { tab = "dashboard" } = req.query;
     const collection = resolveCollection(tab) || "bookings";
     const snap = await db.collection(collection).get();
-    const docs = snap.docs.map((doc) => ({ id: doc.id, ...serialize(doc.data()) }));
+    let docs = snap.docs.map((doc) => ({ id: doc.id, ...serialize(doc.data()) }));
+    if (collection === "bookings") {
+      docs = await Promise.all(docs.map((row) => enrichBooking(row)));
+    }
     const items = buildActivityRows(collection, docs);
     return res.json({ tab, items });
   } catch (error) {
@@ -186,6 +291,9 @@ exports.getEntities = async (req, res) => {
 
     const snap = await db.collection(collection).get();
     let items = snap.docs.map((doc) => ({ id: doc.id, ...serialize(doc.data()) }));
+    if (collection === "bookings") {
+      items = await Promise.all(items.map((row) => enrichBooking(row)));
+    }
 
     const needle = String(q).trim().toLowerCase();
     if (needle) {
@@ -212,7 +320,8 @@ exports.createEntity = async (req, res) => {
     const collection = resolveCollection(entity);
     if (!collection) return res.status(400).json({ message: "Unsupported entity" });
 
-    const payload = { ...(req.body || {}), created_at: new Date(), updated_at: new Date() };
+    const normalized = normalizeEntityPayload(collection, req.body || {}, true);
+    const payload = { ...normalized, created_at: new Date(), updated_at: new Date() };
     const ref = await db.collection(collection).add(payload);
     return res.status(201).json({ message: "Created", id: ref.id });
   } catch (error) {
@@ -227,7 +336,8 @@ exports.updateEntity = async (req, res) => {
     if (!collection) return res.status(400).json({ message: "Unsupported entity" });
     if (!id) return res.status(400).json({ message: "id is required" });
 
-    const patch = { ...(req.body || {}), updated_at: new Date() };
+    const normalized = normalizeEntityPayload(collection, req.body || {});
+    const patch = { ...normalized, updated_at: new Date() };
     delete patch.id;
     await db.collection(collection).doc(id).set(patch, { merge: true });
     return res.json({ message: "Updated" });
@@ -262,6 +372,7 @@ exports.getCollections = async (req, res) => {
       "reviews",
       "accounts",
       "locations",
+      "cities",
       "reports",
       "settings",
     ],
