@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuickFix</title>
+  <style>
+    :root {
+      --blue: #1f4ed8;
+      --blue-dark: #0b1e5b;
+      --orange: #ff7a18;
+      --orange-soft: #ffb067;
+      --bg: #f4f8ff;
+      --text: #0f172a;
+      --muted: #4b5563;
+      --white: #ffffff;
+      --line: rgba(31, 78, 216, 0.12);
+      --shadow: 0 20px 45px rgba(15, 23, 42, 0.14);
+      --radius-xl: 30px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(255, 122, 24, 0.18), transparent 25%),
+        radial-gradient(circle at top right, rgba(31, 78, 216, 0.16), transparent 28%),
+        linear-gradient(180deg, #f7f9ff 0%, #eef4ff 100%);
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 24px 0 64px;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 0.95fr;
+      gap: 28px;
+      padding: 34px;
+      border-radius: var(--radius-xl);
+      background: linear-gradient(135deg, var(--orange) 0%, var(--blue) 100%);
+      color: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -80px -80px auto;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 65%);
+    }
+
+    .hero-copy,
+    .hero-image,
+    .card {
+      position: relative;
+      z-index: 1;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 0.82rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.84);
+      font-weight: 700;
+    }
+
+    .hero h1 {
+      margin: 0 0 14px;
+      font-size: clamp(2.8rem, 6vw, 4.8rem);
+      line-height: 0.98;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 34rem;
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.92);
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 15px 24px;
+      border-radius: 999px;
+      font-weight: 700;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+    }
+
+    .btn-light {
+      background: var(--white);
+      color: var(--orange);
+    }
+
+    .btn-dark {
+      background: rgba(8, 15, 36, 0.2);
+      color: var(--white);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+    }
+
+    .hero-image {
+      padding: 14px;
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(10px);
+    }
+
+    .hero-image img {
+      display: block;
+      width: 100%;
+      border-radius: 18px;
+      box-shadow: 0 18px 35px rgba(0, 0, 0, 0.22);
+    }
+
+    .section {
+      margin-top: 28px;
+    }
+
+    .section-title {
+      margin: 0 0 16px;
+      font-size: 1.9rem;
+      color: var(--blue-dark);
+    }
+
+    .section-subtitle {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+    }
+
+    .card {
+      padding: 18px;
+      border-radius: var(--radius-lg);
+      background: var(--white);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .card img {
+      display: block;
+      width: 100%;
+      border-radius: var(--radius-md);
+    }
+
+    .card p {
+      margin: 12px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .video-card {
+      padding: 20px;
+    }
+
+    .video-frame {
+      overflow: hidden;
+      border-radius: var(--radius-lg);
+      border: 3px solid rgba(255, 122, 24, 0.18);
+      background: #0f172a;
+    }
+
+    .video-frame iframe {
+      display: block;
+      width: 100%;
+      height: 480px;
+      border: 0;
+    }
+
+    .download-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 24px;
+      border-radius: var(--radius-lg);
+      background: linear-gradient(135deg, rgba(255, 122, 24, 0.1), rgba(31, 78, 216, 0.1));
+      border: 1px solid rgba(31, 78, 216, 0.12);
+      box-shadow: var(--shadow);
+    }
+
+    .download-box .btn-light {
+      background: linear-gradient(135deg, var(--orange), var(--orange-soft));
+      color: var(--white);
+    }
+
+    .download-box .btn-dark {
+      background: var(--blue);
+      border-color: transparent;
+    }
+
+    .footer {
+      margin-top: 30px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 900px) {
+
+      .hero,
+      .gallery {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        width: min(100% - 1rem, 100%);
+      }
+
+      .hero,
+      .card,
+      .download-box {
+        padding: 20px;
+      }
+
+      .video-frame iframe {
+        height: 240px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">QuickFix Showcase</p>
+        <h1>QuickFix</h1>
+        <p>Book trusted technicians fast with a clean mobile experience built for quick service requests.</p>
+        <div class="button-row">
+          <a href="QFImages/QuickFix.apk" target="_blank" download class="btn btn-light">Download APK</a>
+          <a href="https://github.com/riyan60/FinalYearProject-QuickFix" class="btn btn-dark">ViewGitHub</a>
+        </div>
+      </div>
+
+      <div class="hero-image">
+        <img src="QFImages/poster.png" alt="QuickFix poster">
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Images</h2>
+      <p class="section-subtitle">A clean visual preview of the QuickFix app.</p>
+      <div class="gallery">
+        <article class="card">
+          <img src="QFImages/home.png" alt="QuickFix app image">
+        </article>
+        <article class="card">
+          <img src="QFImages/map.png" alt="QuickFix app preview">
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Demo Video</h2>
+      <div class="card video-card">
+        <div class="video-frame">
+          <!-- <iframe controls muted src="QFImages/QF.mp4" frameborder="0" allowfullscreen title="QuickFix demo video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen></iframe> -->
+          <video width="100%" controls muted autoplay loop playsinline>
+            <source src="QFImages/QF.mp4" type="video/mp4">
+          </video>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Download</h2>
+      <div class="download-box">
+        <a href="#" class="btn btn-light">Download APK</a>
+        <a href="#" class="btn btn-dark">GitHub Repo</a>
+      </div>
+    </section>
+
+    <footer class="footer">
+      QuickFix | The Repairman Finder App | 2025 &copy; All rights reserved.
+    </footer>
+  </div>
+</body>
+
+</html>
