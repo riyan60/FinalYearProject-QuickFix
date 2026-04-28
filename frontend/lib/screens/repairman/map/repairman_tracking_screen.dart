@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 
 import '../../../core/utils/location_utils.dart';
 import '../../../models/booking_model.dart';
 import '../../../services/google_route_service.dart';
+import '../../../services/location_service.dart';
 
 class RepairmanTrackingScreen extends StatefulWidget {
   final Booking booking;
@@ -29,6 +29,7 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
   String _statusText = 'Loading user location...';
   bool _isFollowingCamera = true;
   bool _isProgrammaticCameraMove = false;
+  bool _canShowRepairmanLocation = false;
   List<LatLng> _routePoints = const [];
 
   @override
@@ -56,7 +57,8 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
         widget.booking.userLongitude!,
       );
     } else {
-      _statusText = 'User location is not available for this booking.';
+      _statusText =
+          'User location is not available for this booking. Ask the user to book again after selecting a map location.';
       _isLoading = false;
     }
   }
@@ -65,11 +67,17 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
     if (_userLocation == null) return;
 
     try {
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
+      final position = await LocationService.getCurrentPosition();
+      if (position == null) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _canShowRepairmanLocation = false;
+          _statusText =
+              'Turn on location permission and GPS to track the user.';
+        });
+        return;
+      }
 
       final currentRepairmanLocation = latlong.LatLng(
         position.latitude,
@@ -89,6 +97,7 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
       setState(() {
         _repairmanLocation = currentRepairmanLocation;
         _isLoading = false;
+        _canShowRepairmanLocation = true;
         if (route != null) {
           _routePoints = route.polylinePoints
               .map((point) => LatLng(point.latitude, point.longitude))
@@ -117,25 +126,35 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
+        _canShowRepairmanLocation = false;
         _statusText =
-            'Unable to calculate live distance. Check location permission.';
+            'Unable to track user location. Check location permission and Google Maps setup.';
       });
     }
   }
 
   Future<void> _fitCameraToPoints() async {
-    if (_mapController == null ||
-        _userLocation == null ||
-        _repairmanLocation == null) {
+    if (_mapController == null || _userLocation == null) {
       return;
     }
 
     final points = _routePoints.length >= 2
         ? _routePoints
-        : [
+        : <LatLng>[
             LatLng(_userLocation!.latitude, _userLocation!.longitude),
-            LatLng(_repairmanLocation!.latitude, _repairmanLocation!.longitude),
+            if (_repairmanLocation != null)
+              LatLng(
+                _repairmanLocation!.latitude,
+                _repairmanLocation!.longitude,
+              ),
           ];
+
+    if (points.length == 1) {
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(points.first, 15),
+      );
+      return;
+    }
 
     var southWestLat = points.first.latitude;
     var southWestLng = points.first.longitude;
@@ -248,7 +267,7 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
                   zIndex: 2,
                 ),
             },
-            myLocationEnabled: true,
+            myLocationEnabled: _canShowRepairmanLocation,
           ),
           if (!_isFollowingCamera)
             Positioned(

@@ -30,6 +30,9 @@ class Booking {
   });
 
   factory Booking.fromJson(Map<String, dynamic> json) {
+    final userData = json['user'];
+    final userMap = userData is Map ? userData : const {};
+
     return Booking(
       id: json['id'] ?? '',
       userId: json['user_id'] ?? json['userId'] ?? '',
@@ -48,10 +51,16 @@ class Booking {
       extraData: Map<String, dynamic>.from(json),
       userLatitude:
           double.tryParse(json['user_latitude']?.toString() ?? '') ??
-          double.tryParse(json['userLatitude']?.toString() ?? ''),
+          double.tryParse(json['userLatitude']?.toString() ?? '') ??
+          double.tryParse(json['latitude']?.toString() ?? '') ??
+          double.tryParse(userMap['latitude']?.toString() ?? '') ??
+          double.tryParse(userMap['lat']?.toString() ?? ''),
       userLongitude:
           double.tryParse(json['user_longitude']?.toString() ?? '') ??
-          double.tryParse(json['userLongitude']?.toString() ?? ''),
+          double.tryParse(json['userLongitude']?.toString() ?? '') ??
+          double.tryParse(json['longitude']?.toString() ?? '') ??
+          double.tryParse(userMap['longitude']?.toString() ?? '') ??
+          double.tryParse(userMap['lng']?.toString() ?? ''),
     );
   }
 

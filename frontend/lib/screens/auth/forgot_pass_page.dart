@@ -295,12 +295,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                   const SizedBox(height: 20),
                   TextButton(
-                    onPressed: _isLoading
+                    onPressed: _isLoading || !_otpRequested
                         ? null
                         : () => _requestOtp(resend: true),
                     child: Text(
                       _otpRequested ? "Resend OTP" : "Send OTP first",
-                      style: const TextStyle(color: Colors.lightBlue),
+                      style: TextStyle(
+                        color: _otpRequested
+                            ? Colors.lightBlue
+                            : Colors.grey.shade500,
+                      ),
                     ),
                   ),
                 ],
