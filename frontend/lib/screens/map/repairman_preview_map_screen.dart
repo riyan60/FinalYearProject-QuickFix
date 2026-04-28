@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 
 import '../../core/utils/location_utils.dart';
+import '../../services/google_route_service.dart';
 
 class RepairmanPreviewMapScreen extends StatefulWidget {
   final String repairmanName;
@@ -25,11 +26,40 @@ class RepairmanPreviewMapScreen extends StatefulWidget {
 
 class _RepairmanPreviewMapScreenState extends State<RepairmanPreviewMapScreen> {
   GoogleMapController? _mapController;
+  GoogleRouteInfo? _routeInfo;
+  List<LatLng> _routePoints = const [];
 
-  double get _distanceKm => calculateDistance(
-        widget.userLocation,
-        widget.repairmanLocation,
+  double get _distanceKm =>
+      _routeInfo?.distanceKm ??
+      calculateDistance(widget.userLocation, widget.repairmanLocation);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoute();
+  }
+
+  Future<void> _loadRoute() async {
+    try {
+      final route = await GoogleRouteService.getDrivingRoute(
+        origin: widget.repairmanLocation,
+        destination: widget.userLocation,
       );
+      if (!mounted) return;
+      setState(() {
+        _routeInfo = route;
+        _routePoints = route.polylinePoints
+            .map((point) => LatLng(point.latitude, point.longitude))
+            .toList();
+      });
+      _fitBounds();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _routePoints = const [];
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,21 +107,22 @@ class _RepairmanPreviewMapScreenState extends State<RepairmanPreviewMapScreen> {
               ),
             },
             polylines: {
-              Polyline(
-                polylineId: const PolylineId('user_to_repairman'),
-                points: [
-                  LatLng(
-                    widget.userLocation.latitude,
-                    widget.userLocation.longitude,
-                  ),
-                  LatLng(
-                    widget.repairmanLocation.latitude,
-                    widget.repairmanLocation.longitude,
-                  ),
-                ],
-                color: const Color(0xFF2E6BE6),
-                width: 5,
-              ),
+              if (_routePoints.length >= 2)
+                Polyline(
+                  polylineId: const PolylineId('user_to_repairman_outline'),
+                  points: _routePoints,
+                  color: const Color(0xFF21127A),
+                  width: 10,
+                  zIndex: 1,
+                ),
+              if (_routePoints.length >= 2)
+                Polyline(
+                  polylineId: const PolylineId('user_to_repairman_fill'),
+                  points: _routePoints,
+                  color: const Color(0xFF5A31F4),
+                  width: 6,
+                  zIndex: 2,
+                ),
             },
             myLocationEnabled: true,
           ),
@@ -122,7 +153,8 @@ class _RepairmanPreviewMapScreenState extends State<RepairmanPreviewMapScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Distance: ${_distanceKm.toStringAsFixed(1)} km',
+                      'Distance: ${_routeInfo == null ? '~' : ''}'
+                      '${_distanceKm.toStringAsFixed(1)} km',
                       style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF374151),
@@ -141,26 +173,32 @@ class _RepairmanPreviewMapScreenState extends State<RepairmanPreviewMapScreen> {
   void _fitBounds() {
     if (_mapController == null) return;
 
-    final southWestLat = math.min(
-          widget.userLocation.latitude,
-          widget.repairmanLocation.latitude,
-        ) -
-        0.01;
-    final southWestLng = math.min(
-          widget.userLocation.longitude,
-          widget.repairmanLocation.longitude,
-        ) -
-        0.01;
-    final northEastLat = math.max(
-          widget.userLocation.latitude,
-          widget.repairmanLocation.latitude,
-        ) +
-        0.01;
-    final northEastLng = math.max(
-          widget.userLocation.longitude,
-          widget.repairmanLocation.longitude,
-        ) +
-        0.01;
+    final points = _routePoints.length >= 2
+        ? _routePoints
+        : [
+            LatLng(widget.userLocation.latitude, widget.userLocation.longitude),
+            LatLng(
+              widget.repairmanLocation.latitude,
+              widget.repairmanLocation.longitude,
+            ),
+          ];
+
+    var southWestLat = points.first.latitude;
+    var southWestLng = points.first.longitude;
+    var northEastLat = points.first.latitude;
+    var northEastLng = points.first.longitude;
+
+    for (final point in points.skip(1)) {
+      southWestLat = math.min(southWestLat, point.latitude);
+      southWestLng = math.min(southWestLng, point.longitude);
+      northEastLat = math.max(northEastLat, point.latitude);
+      northEastLng = math.max(northEastLng, point.longitude);
+    }
+
+    southWestLat -= 0.01;
+    southWestLng -= 0.01;
+    northEastLat += 0.01;
+    northEastLng += 0.01;
 
     _mapController!.animateCamera(
       CameraUpdate.newLatLngBounds(

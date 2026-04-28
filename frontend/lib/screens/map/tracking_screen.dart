@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../services/location_service.dart';
+import '../../../services/google_route_service.dart';
 import '../../../models/booking_model.dart';
 import '../../../core/utils/location_utils.dart';
 import 'package:latlong2/latlong.dart' as latlong;
@@ -30,6 +31,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
   bool _isLoading = true;
   bool _isFollowingCamera = true;
   bool _isProgrammaticCameraMove = false;
+  List<LatLng> _routePoints = const [];
 
   @override
   void initState() {
@@ -70,18 +72,42 @@ class _TrackingScreenState extends State<TrackingScreen> {
       final lat = double.tryParse(locationData['latitude'].toString());
       final lng = double.tryParse(locationData['longitude'].toString());
       if (lat != null && lng != null && mounted) {
+        final repairmanLocation = latlong.LatLng(lat, lng);
+        GoogleRouteInfo? route;
+        if (_userLocation != null) {
+          try {
+            route = await GoogleRouteService.getDrivingRoute(
+              origin: repairmanLocation,
+              destination: _userLocation!,
+            );
+          } catch (_) {
+            route = null;
+          }
+        }
+        if (!mounted) return;
+
         setState(() {
-          _repairmanLocation = latlong.LatLng(lat, lng);
+          _repairmanLocation = repairmanLocation;
           _isLoading = false;
           if (_userLocation != null) {
-            final distance = calculateDistance(
-              _userLocation!,
-              _repairmanLocation!,
-            );
-            final eta = calculateETA(_userLocation!, _repairmanLocation!);
-            _statusText =
-                '${distance.toStringAsFixed(1)} km away, ETA $eta min';
+            if (route != null) {
+              _routePoints = route.polylinePoints
+                  .map((point) => LatLng(point.latitude, point.longitude))
+                  .toList();
+              _statusText =
+                  '${route.distanceKm.toStringAsFixed(1)} km away, ETA ${route.durationMinutes} min';
+            } else {
+              final distance = calculateDistance(
+                _userLocation!,
+                _repairmanLocation!,
+              );
+              final eta = calculateETA(_repairmanLocation!, _userLocation!);
+              _routePoints = const [];
+              _statusText =
+                  '~${distance.toStringAsFixed(1)} km away, ETA $eta min';
+            }
           } else {
+            _routePoints = const [];
             _statusText =
                 'Repairman at ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
           }
@@ -108,16 +134,29 @@ class _TrackingScreenState extends State<TrackingScreen> {
       return;
     }
 
-    final southWestLat =
-        math.min(_userLocation!.latitude, _repairmanLocation!.latitude) - 0.01;
-    final southWestLng =
-        math.min(_userLocation!.longitude, _repairmanLocation!.longitude) -
-        0.01;
-    final northEastLat =
-        math.max(_userLocation!.latitude, _repairmanLocation!.latitude) + 0.01;
-    final northEastLng =
-        math.max(_userLocation!.longitude, _repairmanLocation!.longitude) +
-        0.01;
+    final points = _routePoints.length >= 2
+        ? _routePoints
+        : [
+            LatLng(_userLocation!.latitude, _userLocation!.longitude),
+            LatLng(_repairmanLocation!.latitude, _repairmanLocation!.longitude),
+          ];
+
+    var southWestLat = points.first.latitude;
+    var southWestLng = points.first.longitude;
+    var northEastLat = points.first.latitude;
+    var northEastLng = points.first.longitude;
+
+    for (final point in points.skip(1)) {
+      southWestLat = math.min(southWestLat, point.latitude);
+      southWestLng = math.min(southWestLng, point.longitude);
+      northEastLat = math.max(northEastLat, point.latitude);
+      northEastLng = math.max(northEastLng, point.longitude);
+    }
+
+    southWestLat -= 0.01;
+    southWestLng -= 0.01;
+    northEastLat += 0.01;
+    northEastLng += 0.01;
 
     final bounds = LatLngBounds(
       southwest: LatLng(southWestLat, southWestLng),
@@ -159,6 +198,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             ),
             onMapCreated: (controller) {
               _mapController = controller;
+              _fitCameraToPoints();
             },
             onCameraMoveStarted: () {
               if (_isProgrammaticCameraMove || !_isFollowingCamera) return;
@@ -192,6 +232,24 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   icon: BitmapDescriptor.defaultMarkerWithHue(
                     BitmapDescriptor.hueRed,
                   ),
+                ),
+            },
+            polylines: {
+              if (_routePoints.length >= 2)
+                Polyline(
+                  polylineId: const PolylineId('repairman_route_outline'),
+                  points: _routePoints,
+                  color: const Color(0xFF21127A),
+                  width: 10,
+                  zIndex: 1,
+                ),
+              if (_routePoints.length >= 2)
+                Polyline(
+                  polylineId: const PolylineId('repairman_route_fill'),
+                  points: _routePoints,
+                  color: const Color(0xFF5A31F4),
+                  width: 6,
+                  zIndex: 2,
                 ),
             },
             myLocationEnabled: true,

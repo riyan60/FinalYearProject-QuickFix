@@ -1,6 +1,6 @@
 class ApiConstants {
   static const String productionBaseUrl =
-      'http://10.0.2.2:5000';
+      'https://quickfix-backend-f6tz.onrender.com';
   static const String defaultWebBaseUrl = productionBaseUrl;
   static const String defaultAndroidEmulatorBaseUrl = productionBaseUrl;
   static const String defaultAndroidPhysicalDeviceBaseUrl = productionBaseUrl;
@@ -12,6 +12,10 @@ class ApiConstants {
   static const String usersEndpoint = '/api/auth';
   static const String createOrderEndpoint = '/api/payments/create-order';
   static const String verifyPaymentEndpoint = '/api/payments/verify-payment';
+  static const String googleMapsApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: 'AIzaSyATCzXAcqtm5IFqfKmZGnUGjpdbGJ4840U',
+  );
   static const String razorpayKeyId = String.fromEnvironment(
     'RAZORPAY_KEY_ID',
     defaultValue: 'rzp_test_SSc35Br3QPENtd',

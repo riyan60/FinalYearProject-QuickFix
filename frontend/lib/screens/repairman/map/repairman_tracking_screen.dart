@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart' as latlong;
 
 import '../../../core/utils/location_utils.dart';
 import '../../../models/booking_model.dart';
+import '../../../services/google_route_service.dart';
 
 class RepairmanTrackingScreen extends StatefulWidget {
   final Booking booking;
@@ -28,6 +29,7 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
   String _statusText = 'Loading user location...';
   bool _isFollowingCamera = true;
   bool _isProgrammaticCameraMove = false;
+  List<LatLng> _routePoints = const [];
 
   @override
   void initState() {
@@ -73,18 +75,39 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
         position.latitude,
         position.longitude,
       );
-      final distanceKm = calculateDistance(
-        currentRepairmanLocation,
-        _userLocation!,
-      );
-      final etaMinutes = calculateETA(currentRepairmanLocation, _userLocation!);
+      GoogleRouteInfo? route;
+      try {
+        route = await GoogleRouteService.getDrivingRoute(
+          origin: currentRepairmanLocation,
+          destination: _userLocation!,
+        );
+      } catch (_) {
+        route = null;
+      }
 
       if (!mounted) return;
       setState(() {
         _repairmanLocation = currentRepairmanLocation;
         _isLoading = false;
-        _statusText =
-            '${distanceKm.toStringAsFixed(1)} km to user, ETA $etaMinutes min';
+        if (route != null) {
+          _routePoints = route.polylinePoints
+              .map((point) => LatLng(point.latitude, point.longitude))
+              .toList();
+          _statusText =
+              '${route.distanceKm.toStringAsFixed(1)} km to user, ETA ${route.durationMinutes} min';
+        } else {
+          final distanceKm = calculateDistance(
+            currentRepairmanLocation,
+            _userLocation!,
+          );
+          final etaMinutes = calculateETA(
+            currentRepairmanLocation,
+            _userLocation!,
+          );
+          _routePoints = const [];
+          _statusText =
+              '~${distanceKm.toStringAsFixed(1)} km to user, ETA $etaMinutes min';
+        }
       });
 
       if (_isFollowingCamera) {
@@ -107,16 +130,29 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
       return;
     }
 
-    final southWestLat =
-        math.min(_userLocation!.latitude, _repairmanLocation!.latitude) - 0.01;
-    final southWestLng =
-        math.min(_userLocation!.longitude, _repairmanLocation!.longitude) -
-        0.01;
-    final northEastLat =
-        math.max(_userLocation!.latitude, _repairmanLocation!.latitude) + 0.01;
-    final northEastLng =
-        math.max(_userLocation!.longitude, _repairmanLocation!.longitude) +
-        0.01;
+    final points = _routePoints.length >= 2
+        ? _routePoints
+        : [
+            LatLng(_userLocation!.latitude, _userLocation!.longitude),
+            LatLng(_repairmanLocation!.latitude, _repairmanLocation!.longitude),
+          ];
+
+    var southWestLat = points.first.latitude;
+    var southWestLng = points.first.longitude;
+    var northEastLat = points.first.latitude;
+    var northEastLng = points.first.longitude;
+
+    for (final point in points.skip(1)) {
+      southWestLat = math.min(southWestLat, point.latitude);
+      southWestLng = math.min(southWestLng, point.longitude);
+      northEastLat = math.max(northEastLat, point.latitude);
+      northEastLng = math.max(northEastLng, point.longitude);
+    }
+
+    southWestLat -= 0.01;
+    southWestLng -= 0.01;
+    northEastLat += 0.01;
+    northEastLng += 0.01;
 
     final bounds = LatLngBounds(
       southwest: LatLng(southWestLat, southWestLng),
@@ -192,6 +228,24 @@ class _RepairmanTrackingScreenState extends State<RepairmanTrackingScreen> {
                   icon: BitmapDescriptor.defaultMarkerWithHue(
                     BitmapDescriptor.hueGreen,
                   ),
+                ),
+            },
+            polylines: {
+              if (_routePoints.length >= 2)
+                Polyline(
+                  polylineId: const PolylineId('route_to_user_outline'),
+                  points: _routePoints,
+                  color: const Color(0xFF21127A),
+                  width: 10,
+                  zIndex: 1,
+                ),
+              if (_routePoints.length >= 2)
+                Polyline(
+                  polylineId: const PolylineId('route_to_user_fill'),
+                  points: _routePoints,
+                  color: const Color(0xFF5A31F4),
+                  width: 6,
+                  zIndex: 2,
                 ),
             },
             myLocationEnabled: true,
