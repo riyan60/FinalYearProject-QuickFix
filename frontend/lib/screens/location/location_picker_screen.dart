@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -626,6 +627,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       children: [
         GoogleMap(
           initialCameraPosition: CameraPosition(target: _cameraStart, zoom: 14),
+          gestureRecognizers: {
+            Factory<OneSequenceGestureRecognizer>(
+              () => EagerGestureRecognizer(),
+            ),
+          },
           onMapCreated: (controller) {
             _mapController = controller;
             if (_selectedLocation != null) {

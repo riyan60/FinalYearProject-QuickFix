@@ -17,7 +17,6 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _emailOtpController = TextEditingController();
   final TextEditingController _dobController = TextEditingController();
   final TextEditingController _idNumberController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -38,10 +37,6 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
 
   bool _isLoading = true;
   bool _isSubmitting = false;
-  bool _isSendingEmailOtp = false;
-  bool _isVerifyingEmailOtp = false;
-  bool _isEmailVerified = false;
-  String _verifiedEmail = '';
   String _idType = 'Aadhaar';
   String _status = 'unverified';
   String _rejectionReason = '';
@@ -50,20 +45,6 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
   @override
   void initState() {
     super.initState();
-    _emailController.addListener(() {
-      final current = _emailController.text.trim().toLowerCase();
-      if (_verifiedEmail.isNotEmpty &&
-          current.isNotEmpty &&
-          current != _verifiedEmail) {
-        if (mounted && _isEmailVerified) {
-          setState(() {
-            _isEmailVerified = false;
-          });
-        } else {
-          _isEmailVerified = false;
-        }
-      }
-    });
     _loadVerification();
   }
 
@@ -71,7 +52,6 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
-    _emailOtpController.dispose();
     _dobController.dispose();
     _idNumberController.dispose();
     _phoneController.dispose();
@@ -103,25 +83,27 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
         (verification['documents'] as Map?) ?? const <String, dynamic>{},
       );
 
-      _fullNameController.text =
-          (profile['full_name'] ?? session['name'] ?? '').toString();
-      _emailController.text =
-          (profile['email'] ?? session['email'] ?? '').toString();
+      _fullNameController.text = (profile['full_name'] ?? session['name'] ?? '')
+          .toString();
+      _emailController.text = (profile['email'] ?? session['email'] ?? '')
+          .toString();
       _dobController.text = (profile['date_of_birth'] ?? '').toString();
-      _phoneController.text =
-          (profile['phone'] ?? session['phone'] ?? '').toString();
-      _addressController.text =
-          (profile['address'] ?? session['address'] ?? '').toString();
-      _cityController.text = (profile['city'] ?? session['city'] ?? '').toString();
+      _phoneController.text = (profile['phone'] ?? session['phone'] ?? '')
+          .toString();
+      _addressController.text = (profile['address'] ?? session['address'] ?? '')
+          .toString();
+      _cityController.text = (profile['city'] ?? session['city'] ?? '')
+          .toString();
       _specializationController.text =
-          (profile['specialization'] ?? session['specialization'] ?? '').toString();
+          (profile['specialization'] ?? session['specialization'] ?? '')
+              .toString();
       _experienceController.text =
           '${profile['experience_years'] ?? session['experience'] ?? ''}';
       _idType = (documents['id_type'] ?? 'Aadhaar').toString();
       _idNumberController.text = (documents['id_last4'] ?? '').toString();
       _idProofUrlController.text = (documents['id_proof_url'] ?? '').toString();
-      _addressProofUrlController.text =
-          (documents['address_proof_url'] ?? '').toString();
+      _addressProofUrlController.text = (documents['address_proof_url'] ?? '')
+          .toString();
       _skillCertificateUrlController.text =
           (documents['skill_certificate_url'] ?? '').toString();
       _selfieUrlController.text = (documents['selfie_url'] ?? '').toString();
@@ -131,21 +113,14 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
       _status = (verification['status'] ?? 'unverified').toString();
       _rejectionReason = (verification['rejection_reason'] ?? '').toString();
       _reviewedAt = (verification['reviewed_at'] ?? '').toString();
-      _isEmailVerified =
-          verification['email_verified'] == true ||
-          profile['email_verified'] == true ||
-          _status.trim().toLowerCase() == 'verified';
-      if (_isEmailVerified) {
-        _verifiedEmail = _emailController.text.trim().toLowerCase();
-      }
     } catch (_) {
       _fullNameController.text = (session['name'] ?? '').toString();
       _emailController.text = (session['email'] ?? '').toString();
       _phoneController.text = (session['phone'] ?? '').toString();
       _addressController.text = (session['address'] ?? '').toString();
       _cityController.text = (session['city'] ?? '').toString();
-      _specializationController.text =
-          (session['specialization'] ?? '').toString();
+      _specializationController.text = (session['specialization'] ?? '')
+          .toString();
       _experienceController.text = '${session['experience'] ?? ''}';
     } finally {
       if (mounted) {
@@ -184,112 +159,8 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
     }
   }
 
-  Future<void> _sendEmailOtp() async {
-    final email = _emailController.text.trim();
-    final emailError = Validators.validateEmail(email);
-    if (emailError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(emailError)),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSendingEmailOtp = true;
-      _isEmailVerified = false;
-    });
-
-    try {
-      final response = await _repairmanService.requestVerificationEmailOtp(
-        email,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response['message'] ?? 'OTP sent to your email.'),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSendingEmailOtp = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _verifyEmailOtp() async {
-    final email = _emailController.text.trim();
-    final otp = _emailOtpController.text.trim();
-    final emailError = Validators.validateEmail(email);
-    if (emailError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(emailError)),
-      );
-      return;
-    }
-    if (otp.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid email OTP.')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isVerifyingEmailOtp = true;
-    });
-
-    try {
-      final response = await _repairmanService.verifyVerificationEmailOtp(
-        email,
-        otp,
-      );
-      if (!mounted) return;
-      setState(() {
-        _isEmailVerified = true;
-        _verifiedEmail = email.toLowerCase();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(response['message'] ?? 'Email verified successfully.'),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _isEmailVerified = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isVerifyingEmailOtp = false;
-        });
-      }
-    }
-  }
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (!_isEmailVerified) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Verify your email with OTP before submitting.'),
-        ),
-      );
-      return;
-    }
 
     setState(() {
       _isSubmitting = true;
@@ -299,7 +170,6 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
       final response = await _repairmanService.submitMyVerification({
         'full_name': _fullNameController.text.trim(),
         'email': _emailController.text.trim(),
-        'email_verified': _isEmailVerified,
         'date_of_birth': _dobController.text.trim(),
         'id_type': _idType,
         'id_number': _idNumberController.text.trim(),
@@ -307,7 +177,8 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
         'address': _addressController.text.trim(),
         'city': _cityController.text.trim(),
         'specialization': _specializationController.text.trim(),
-        'experience_years': int.tryParse(_experienceController.text.trim()) ?? 0,
+        'experience_years':
+            int.tryParse(_experienceController.text.trim()) ?? 0,
         'id_proof_url': _idProofUrlController.text.trim(),
         'address_proof_url': _addressProofUrlController.text.trim(),
         'skill_certificate_url': _skillCertificateUrlController.text.trim(),
@@ -323,19 +194,12 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
       await AuthService.updateSessionData({
         'verification_status': verification['status'] ?? 'pending',
         'is_verified': verification['is_verified'] == true,
-        'email_verified':
-            verification['email_verified'] == true || _isEmailVerified,
       });
 
       if (!mounted) return;
       setState(() {
         _status = (verification['status'] ?? 'pending').toString();
         _rejectionReason = '';
-        _isEmailVerified =
-            verification['email_verified'] == true || _isEmailVerified;
-        if (_isEmailVerified) {
-          _verifiedEmail = _emailController.text.trim().toLowerCase();
-        }
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Verification submitted for review.')),
@@ -374,9 +238,7 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
     );
@@ -475,88 +337,10 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
                           validator: Validators.validateEmail,
                         ),
                         _buildTextField(
-                          'Email OTP',
-                          _emailOtpController,
-                          keyboardType: TextInputType.number,
-                          hint: 'Enter OTP from email',
-                        ),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: 48,
-                                child: OutlinedButton(
-                                  onPressed: _isSendingEmailOtp
-                                      ? null
-                                      : _sendEmailOtp,
-                                  child: _isSendingEmailOtp
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Text('Send OTP'),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: SizedBox(
-                                height: 48,
-                                child: FilledButton(
-                                  onPressed: _isVerifyingEmailOtp
-                                      ? null
-                                      : _verifyEmailOtp,
-                                  child: _isVerifyingEmailOtp
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  Colors.white,
-                                                ),
-                                          ),
-                                        )
-                                      : const Text('Verify Email'),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              _isEmailVerified
-                                  ? Icons.verified_rounded
-                                  : Icons.pending_outlined,
-                              color: _isEmailVerified
-                                  ? const Color(0xFF2E7D32)
-                                  : const Color(0xFFE05A2A),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _isEmailVerified
-                                  ? 'Email verified'
-                                  : 'Email verification pending',
-                              style: TextStyle(
-                                color: _isEmailVerified
-                                    ? const Color(0xFF2E7D32)
-                                    : const Color(0xFFE05A2A),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        _buildTextField(
                           'Full Name',
                           _fullNameController,
-                          validator: (value) => (value == null || value.trim().isEmpty)
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty)
                               ? 'Full name is required'
                               : null,
                         ),
@@ -574,10 +358,19 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
                             ),
                           ),
                           items: const [
-                            DropdownMenuItem(value: 'Aadhaar', child: Text('Aadhaar')),
+                            DropdownMenuItem(
+                              value: 'Aadhaar',
+                              child: Text('Aadhaar'),
+                            ),
                             DropdownMenuItem(value: 'PAN', child: Text('PAN')),
-                            DropdownMenuItem(value: 'Driving License', child: Text('Driving License')),
-                            DropdownMenuItem(value: 'Voter ID', child: Text('Voter ID')),
+                            DropdownMenuItem(
+                              value: 'Driving License',
+                              child: Text('Driving License'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Voter ID',
+                              child: Text('Voter ID'),
+                            ),
                           ],
                           onChanged: (value) {
                             setState(() {
@@ -589,7 +382,8 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
                         _buildTextField(
                           'ID Number',
                           _idNumberController,
-                          validator: (value) => (value == null || value.trim().isEmpty)
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty)
                               ? 'ID number is required'
                               : null,
                         ),
@@ -599,9 +393,16 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
                           keyboardType: TextInputType.phone,
                           validator: Validators.validatePhone,
                         ),
-                        _buildTextField('Address', _addressController, maxLines: 2),
+                        _buildTextField(
+                          'Address',
+                          _addressController,
+                          maxLines: 2,
+                        ),
                         _buildTextField('City', _cityController),
-                        _buildTextField('Specialization', _specializationController),
+                        _buildTextField(
+                          'Specialization',
+                          _specializationController,
+                        ),
                         _buildTextField(
                           'Experience (Years)',
                           _experienceController,
@@ -622,11 +423,7 @@ class _RepairmanVerificationPageState extends State<RepairmanVerificationPage> {
                           _digilockerReferenceController,
                           hint: 'Optional for future integration',
                         ),
-                        _buildTextField(
-                          'Notes',
-                          _notesController,
-                          maxLines: 3,
-                        ),
+                        _buildTextField('Notes', _notesController, maxLines: 3),
                         const SizedBox(height: 8),
                         SizedBox(
                           width: double.infinity,

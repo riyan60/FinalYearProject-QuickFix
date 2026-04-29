@@ -2,7 +2,7 @@ class ApiConstants {
   static const String productionBaseUrl =
       'https://quickfix-backend-f6tz.onrender.com';
   static const String defaultWebBaseUrl = productionBaseUrl;
-  static const String defaultAndroidEmulatorBaseUrl = productionBaseUrl;
+  static const String defaultAndroidEmulatorBaseUrl = 'https://quickfix-backend-f6tz.onrender.com';
   static const String defaultAndroidPhysicalDeviceBaseUrl = productionBaseUrl;
   static const String defaultDesktopBaseUrl = productionBaseUrl;
   static const String loginEndpoint = '/api/auth/login';
