@@ -1,1 +1,1 @@
-.\start.bat
+quickfix.riyanlobo.in
