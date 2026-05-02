@@ -128,6 +128,24 @@ const enrichBooking = async (booking) => {
   if (userDoc && userDoc.exists) {
     const user = userDoc.data() || {};
     enriched.user_name = user.name || enriched.user_name || "";
+    if (
+      (enriched.user_latitude === undefined ||
+        enriched.user_latitude === null ||
+        enriched.user_latitude === "") &&
+      user.latitude !== undefined &&
+      user.latitude !== null
+    ) {
+      enriched.user_latitude = Number(user.latitude);
+    }
+    if (
+      (enriched.user_longitude === undefined ||
+        enriched.user_longitude === null ||
+        enriched.user_longitude === "") &&
+      user.longitude !== undefined &&
+      user.longitude !== null
+    ) {
+      enriched.user_longitude = Number(user.longitude);
+    }
   }
 
   if (repairmanDoc && repairmanDoc.exists) {

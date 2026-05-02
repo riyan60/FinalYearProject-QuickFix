@@ -40,8 +40,15 @@ const canResendNow = (lastSentAt) => {
   return (Date.now() - last.getTime()) / 1000 >= RESEND_COOLDOWN_SEC;
 };
 
-const getAccountByUsername = async (username) => {
-  const snap = await db.collection("accounts").where("username", "==", username).get();
+const getAccountByIdentifier = async (identifier) => {
+  const value = String(identifier || "").trim();
+  if (!value) return null;
+
+  let snap = await db.collection("accounts").where("username", "==", value).get();
+  if (snap.empty) {
+    snap = await db.collection("accounts").where("email", "==", value).get();
+  }
+
   if (snap.empty) return null;
   const doc = snap.docs[0];
   return { id: doc.id, ...doc.data() };
@@ -62,13 +69,15 @@ const sendEmailOtp = async (toEmail, otp) => {
 };
 
 // 1) Request OTP (email-only)
-// Body: { username }
+// Body: { username } or { email } or { identifier }
 exports.requestOtp = async (req, res) => {
   try {
-    const { username } = req.body;
-    if (!username) return res.status(400).json({ message: "username required" });
+    const identifier = req.body.username || req.body.email || req.body.identifier;
+    if (!identifier) {
+      return res.status(400).json({ message: "username or email required" });
+    }
 
-    const acc = await getAccountByUsername(username);
+    const acc = await getAccountByIdentifier(identifier);
 
     // Security: do not reveal whether username exists
     if (!acc || !acc.email) {
@@ -134,15 +143,16 @@ exports.resendOtp = async (req, res) => {
 };
 
 // 3) Verify OTP
-// Body: { username, otp }
+// Body: { username, otp } or { email, otp } or { identifier, otp }
 exports.verifyOtp = async (req, res) => {
   try {
-    const { username, otp } = req.body;
-    if (!username || !otp || String(otp).length !== OTP_LEN) {
-      return res.status(400).json({ message: "username and 4-digit otp required" });
+    const identifier = req.body.username || req.body.email || req.body.identifier;
+    const { otp } = req.body;
+    if (!identifier || !otp || String(otp).length !== OTP_LEN) {
+      return res.status(400).json({ message: "username/email and 4-digit otp required" });
     }
 
-    const acc = await getAccountByUsername(username);
+    const acc = await getAccountByIdentifier(identifier);
     if (!acc) return res.status(400).json({ message: "Invalid OTP" });
 
     const resetRef = db.collection("password_resets").doc(acc.id);
@@ -177,15 +187,16 @@ exports.verifyOtp = async (req, res) => {
 };
 
 // 4) Reset Password
-// Body: { username, newPassword }
+// Body: { username, newPassword } or { email, newPassword } or { identifier, newPassword }
 exports.resetPassword = async (req, res) => {
   try {
-    const { username, newPassword } = req.body;
-    if (!username || !newPassword) {
-      return res.status(400).json({ message: "username and newPassword required" });
+    const identifier = req.body.username || req.body.email || req.body.identifier;
+    const { newPassword } = req.body;
+    if (!identifier || !newPassword) {
+      return res.status(400).json({ message: "username/email and newPassword required" });
     }
 
-    const acc = await getAccountByUsername(username);
+    const acc = await getAccountByIdentifier(identifier);
     if (!acc) return res.status(400).json({ message: "Invalid request" });
 
     const resetRef = db.collection("password_resets").doc(acc.id);

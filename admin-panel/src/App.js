@@ -26,6 +26,7 @@ const apiBaseCandidates = Array.from(
       process.env.REACT_APP_API_BASE_URL,
       'http://localhost:5000/api',
       'http://127.0.0.1:5000/api',
+      'https://quickfix-backend-f6tz.onrender.com/api',
       '/api',
     ].filter(Boolean)
   )
@@ -211,7 +212,7 @@ const Dashboard = () => {
   const formatCurrency = (amount) =>
     new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       maximumFractionDigits: 0,
     }).format(Number(amount || 0));
 
@@ -220,8 +221,9 @@ const Dashboard = () => {
       setIsStatsLoading(true);
       setStatsError('');
       const data = await fetchFromApi('/admin/summary');
+      const totalBookings = Number(data?.totals?.bookings || 0);
       setStats({
-        totalRevenue: Number(data?.stats?.totalRevenue || 0),
+        totalRevenue: totalBookings * 20,
         activeUsers: Number(data?.stats?.activeUsers || 0),
         activeRepairmen: Number(data?.stats?.activeRepairmen || 0),
         pendingBookings: Number(data?.stats?.pendingBookings || 0),

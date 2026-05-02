@@ -230,7 +230,7 @@ exports.getDashboardSummary = async (req, res) => {
     const payments = paymentsSnap.docs.map((doc) => doc.data());
     const reviews = reviewsSnap.docs.map((doc) => doc.data());
 
-    const totalRevenue = payments.reduce((sum, payment) => sum + toAmount(payment.amount_paid), 0);
+    const totalRevenue = bookings.length * 20;
     const activeUsers = accounts.filter((a) => a.role === "user" && a.is_active !== false).length;
     const activeRepairmen = repairmen.filter((r) => r.availability_status === "available").length;
     const pendingBookings = bookings.filter((b) => b.status === "pending").length;
